@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; media-src 'self' file:; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8765;">
+  <title>Anki Video Clipper</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="left-panel">
+      <div class="video-container">
+        <video id="video-player" controls></video>
+        <div id="video-subtitle" class="video-subtitle"></div>
+        <div class="video-controls">
+          <button id="select-video-btn">Select Video & Subtitles</button>
+          <button id="subtitle-settings-btn">Subtitle Settings</button>
+          <button id="embedded-subtitles-btn">Embedded Subtitles</button>
+          <button id="select-subtitle-btn" style="display: none;">Select Subtitles</button>
+          <div class="file-info">
+            <span id="video-path">Video: Not Selected</span>
+            <span id="subtitle-path">Subtitles: Not Selected</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="resizer" id="panel-resizer"></div>
+    
+    <div class="right-panel">
+      <div class="subtitle-container">
+        <h3>Subtitles</h3>
+        <div class="subtitle-search-container">
+          <input type="text" id="subtitle-search" placeholder="Altyazılarda ara..." class="subtitle-search">
+          <button id="clear-search-btn" class="clear-search-btn">&times;</button>
+        </div>
+        <div id="subtitle-list" class="subtitle-list">
+          <div class="subtitle-placeholder">
+            Use the button on the left to select video and subtitle files.
+          </div>
+        </div>
+      </div>
+      
+      <div class="clip-editor">
+        <h3>Clip Editor</h3>
+        <div class="clip-form">
+          <div class="form-group">
+            <div id="timeline-container" class="timeline-container">
+              <div id="timeline-track" class="timeline-track">
+                <!-- Timeline content will be filled with JavaScript -->
+              </div>
+              <div id="timeline-cursor" class="timeline-cursor"></div>
+              <div id="timeline-tooltip" class="timeline-tooltip"></div>
+            </div>
+            <div class="timeline-controls">
+              <div class="timeline-btn-group">
+                <button id="prev-scene-add-btn" class="timeline-btn">Add Previous Scene</button>
+                <button id="prev-scene-remove-btn" class="timeline-btn">Remove Previous Scene</button>
+              </div>
+              <div class="timeline-zoom-controls">
+                <button id="zoom-out-btn" class="timeline-zoom-btn" title="Zoom Out">−</button>
+                <span id="zoom-level" class="zoom-level">1x</span>
+                <button id="zoom-in-btn" class="timeline-zoom-btn" title="Zoom In">+</button>
+              </div>
+              <div class="timeline-btn-group">
+                <button id="next-scene-add-btn" class="timeline-btn">Add Next Scene</button>
+                <button id="next-scene-remove-btn" class="timeline-btn">Remove Next Scene</button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-group time-controls">
+            <div class="time-control-group">
+              <label for="start-time">Start:</label>
+              <div class="time-input-group">
+                <input type="text" id="start-time" placeholder="00:01:23.000">
+                <div class="time-spinner">
+                  <button id="start-time-up" class="spinner-btn">▲</button>
+                  <button id="start-time-down" class="spinner-btn">▼</button>
+                </div>
+              </div>
+            </div>
+            <div class="time-control-group">
+              <label for="end-time">End:</label>
+              <div class="time-input-group">
+                <input type="text" id="end-time" placeholder="00:01:26.000">
+                <div class="time-spinner">
+                  <button id="end-time-up" class="spinner-btn">▲</button>
+                  <button id="end-time-down" class="spinner-btn">▼</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="action-buttons">
+            <button id="preview-clip-btn">Preview</button>
+            <button id="create-clip-btn">Create Clip</button>
+            <button id="send-to-anki-btn">Anki Export</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Subtitle Settings Modal -->
+  <div id="subtitle-settings-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Subtitle Settings</h3>
+        <span class="close-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="settings-group">
+          <h4>Appearance</h4>
+          <div class="setting-item">
+            <label for="subtitle-font-size">Font Size:</label>
+            <input type="range" id="subtitle-font-size" min="12" max="36" value="18" step="1">
+            <span id="subtitle-font-size-value">18px</span>
+          </div>
+          <div class="setting-item">
+            <label for="subtitle-font-color">Font Color:</label>
+            <input type="color" id="subtitle-font-color" value="#ffffff">
+          </div>
+          <div class="setting-item">
+            <label for="subtitle-bg-color">Background Color:</label>
+            <input type="color" id="subtitle-bg-color" value="#000000">
+            <input type="range" id="subtitle-bg-opacity" min="0" max="1" value="0.5" step="0.1">
+            <span id="subtitle-bg-opacity-value">50%</span>
+          </div>
+          <div class="setting-item">
+            <label for="subtitle-position">Position:</label>
+            <select id="subtitle-position">
+              <option value="bottom">Bottom</option>
+              <option value="top">Top</option>
+              <option value="middle">Middle</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h4>Behavior</h4>
+          <div class="setting-item">
+            <label for="subtitle-auto-scroll">Auto Scroll:</label>
+            <input type="checkbox" id="subtitle-auto-scroll" checked>
+          </div>
+          <div class="setting-item">
+            <label for="subtitle-highlight">Highlight Active Subtitle:</label>
+            <input type="checkbox" id="subtitle-highlight" checked>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h4>Preview</h4>
+          <div id="subtitle-preview" class="subtitle-preview">
+            Subtitle preview text
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="reset-subtitle-settings">Reset to Default</button>
+        <button id="save-subtitle-settings">Save</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Anki Card Modal -->
+  <div id="anki-card-modal" class="modal">
+    <div class="modal-content anki-modal-content">
+      <div class="modal-header">
+        <h3>Send to Anki</h3>
+        <span class="close-modal" id="close-anki-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <form class="anki-form">
+          <div class="form-group">
+            <label for="anki-id">Id:</label>
+            <input type="text" id="anki-id" readonly>
+          </div>
+          
+          <div class="form-group">
+            <label for="anki-video">Video:</label>
+            <input type="text" id="anki-video" readonly>
+          </div>
+          
+          <div class="form-group">
+            <label for="anki-word">Word:</label>
+            <input type="text" id="anki-word" placeholder="Enter word..." tabindex="1">
+          </div>
+          
+          <div class="form-group">
+            <label for="anki-en">En:</label>
+            <input type="text" id="anki-en" placeholder="Enter English definition..." tabindex="2">
+          </div>
+          
+          <div class="form-group">
+            <label for="anki-tr">Tr:</label>
+            <input type="text" id="anki-tr" placeholder="Enter Turkish translation..." tabindex="3">
+          </div>
+          
+          <div class="form-group">
+            <label for="anki-extra">Extra:</label>
+            <input type="text" id="anki-extra" placeholder="Enter additional information..." tabindex="4">
+          </div>
+          
+          <div class="form-group">
+            <label for="anki-tags">Tags:</label>
+            <input type="text" id="anki-tags" placeholder="Enter tags (comma separated)..." tabindex="5">
+          </div>
+          
+          <div class="form-group">
+            <label for="anki-deck">Deck:</label>
+            <select id="anki-deck" tabindex="6">
+              <option value="">Loading decks...</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <div class="progress-container" id="anki-progress-container" style="display: none;">
+          <div class="progress-bar" id="anki-progress-bar"></div>
+          <div class="progress-text" id="anki-progress-text">İşleniyor...</div>
+        </div>
+        <button id="anki-cancel-btn" type="button" tabindex="8">Cancel</button>
+        <button id="anki-send-btn" type="button" tabindex="7">Send to Anki</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Embedded Subtitles Modal -->
+  <div id="embedded-subtitles-modal" class="modal">
+    <div class="modal-content embedded-subtitles-modal-content">
+      <div class="modal-header">
+        <h3>Embedded Subtitles</h3>
+        <span class="close-modal" id="close-embedded-subtitles-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="embedded-subtitles-list" id="embedded-subtitles-list">
+          <div class="loading-message">Loading subtitles...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="embedded-subtitles-cancel-btn" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html> 

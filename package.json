@@ -1,0 +1,21 @@
+{
+  "name": "anki-video-clipper",
+  "version": "1.0.0",
+  "description": "Film izlerken Anki kartları oluşturmak için Electron tabanlı uygulama",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^29.1.0"
+  },
+  "dependencies": {
+    "fluent-ffmpeg": "^2.1.2",
+    "node-fetch": "^2.7.0",
+    "subtitle": "^4.2.1",
+    "video.js": "^8.22.0"
+  }
+}
