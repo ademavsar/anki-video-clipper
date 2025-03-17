@@ -16,7 +16,11 @@ An Electron-based application for creating Anki cards while watching films.
 
 ## Screenshots
 
-*Screenshots to be added to GitHub repository*
+![Main Interface](screenshots/main_interface.png)
+*Main interface with video player, subtitle list and clip editor*
+
+![Anki Export](screenshots/anki_export.png)
+*Anki export dialog for creating flashcards*
 
 ## Installation
 
