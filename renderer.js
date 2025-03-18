@@ -287,6 +287,11 @@ selectMediaFilesBtn.addEventListener('click', async () => {
     const result = await window.electronAPI.selectMediaFiles();
     
     if (result.videoPath) {
+      // Yeni bir video seçildi, ama altyazı seçilmediyse eski altyazı verilerini temizle
+      if (!result.subtitlePath && appState.subtitles.length > 0) {
+        clearSubtitles();
+      }
+      
       appState.videoPath = result.videoPath;
       videoPathDisplay.textContent = `Video: ${getFileName(result.videoPath)}`;
       
@@ -2040,6 +2045,9 @@ async function selectEmbeddedSubtitle(videoPath, streamIndex) {
     // Modal penceresini kapat
     embeddedSubtitlesModal.style.display = 'none';
     
+    // Mevcut altyazı verilerini temizle
+    clearSubtitles();
+    
     // Altyazıyı çıkart
     const subtitlePath = await window.electronAPI.extractEmbeddedSubtitle({
       videoPath: videoPath,
@@ -2105,3 +2113,32 @@ verticalPositionInput.addEventListener('input', () => {
   verticalPositionValue.textContent = `${position}%`;
   updateSubtitlePreview();
 });
+
+// Altyazı verilerini temizle
+function clearSubtitles() {
+  // Altyazı verisini temizle
+  appState.subtitles = [];
+  appState.subtitlePath = null;
+  appState.currentSubtitleIndex = -1;
+  appState.activeSubtitleIndex = -1;
+  
+  // Altyazı gösterimini temizle
+  videoSubtitle.textContent = '';
+  videoSubtitle.style.display = 'none';
+  
+  // Altyazı listesini temizle
+  subtitleList.innerHTML = '';
+  subtitleList.innerHTML = `
+    <div class="subtitle-placeholder">
+      No subtitles loaded. Select a subtitle file or use embedded subtitles.
+    </div>
+  `;
+  
+  // Altyazı yolu gösterimini temizle
+  subtitlePathDisplay.textContent = 'Subtitles: Not Selected';
+  
+  // Zaman çizelgesini temizle
+  timelineTrack.innerHTML = '';
+  
+  console.log('Subtitle data cleared');
+}

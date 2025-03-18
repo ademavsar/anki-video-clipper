@@ -129,7 +129,7 @@ The application uses the following technologies:
 - [ ] Some subtitle formatting lost during import
 - [ ] Timeline zoom needs improvement on high-resolution screens
 - [ ] Video player controls overlap with subtitles in some cases
-- [ ] Previous subtitle file remains visible when opening a new video file without subtitle
+- [x] Previous subtitle file remains visible when opening a new video file without subtitle
 
 ## License
 
