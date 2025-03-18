@@ -115,7 +115,7 @@ The application uses the following technologies:
   - [x] Font family selection (Arial, Verdana, Roboto, Open Sans, Noto Sans, Courier New, Times New Roman)
   - [x] Text formatting options (bold, italic)
   - [x] Advanced vertical positioning with custom percentage values
-  - [x] Theme-consistent dropdown menus with custom styling
+  - [x] Improved UI with dark theme compatible controls
 - [ ] Better compatibility with various video codecs
 - [ ] First/Last frame capture feature for Anki cards
 - [ ] Drag and drop support for video and subtitle files
@@ -129,7 +129,7 @@ The application uses the following technologies:
 - [ ] Some subtitle formatting lost during import
 - [ ] Timeline zoom needs improvement on high-resolution screens
 - [ ] Video player controls overlap with subtitles in some cases
-- [x] Previous subtitle file remains visible when opening a new video file without subtitle
+- [ ] Previous subtitle file remains visible when opening a new video file without subtitle
 
 ## License
 

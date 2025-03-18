@@ -287,11 +287,6 @@ selectMediaFilesBtn.addEventListener('click', async () => {
     const result = await window.electronAPI.selectMediaFiles();
     
     if (result.videoPath) {
-      // Yeni bir video seçildi, ama altyazı seçilmediyse eski altyazı verilerini temizle
-      if (!result.subtitlePath && appState.subtitles.length > 0) {
-        clearSubtitles();
-      }
-      
       appState.videoPath = result.videoPath;
       videoPathDisplay.textContent = `Video: ${getFileName(result.videoPath)}`;
       
@@ -1795,21 +1790,16 @@ function updateSubtitlePreview() {
   
   // Dikey konum bilgisi metni oluştur
   let positionText;
-  let positionDetail;
-  
   if (position === 'top') {
     positionText = 'Top';
-    positionDetail = verticalPosition < 50 ? 'Upper area' : 'Near middle';
   } else if (position === 'middle') {
     positionText = 'Middle';
-    positionDetail = verticalPosition < 50 ? 'Above center' : 'Below center';
   } else {
     positionText = 'Bottom';
-    positionDetail = verticalPosition > 50 ? 'Lower area' : 'Near middle';
   }
   
   // Presets ve özel dikey konum bilgisini göster
-  subtitlePreview.setAttribute('data-position', `${positionText} (${positionDetail}, ${verticalPosition}%)`);
+  subtitlePreview.setAttribute('data-position', `${positionText} (${verticalPosition}%)`);
 }
 
 // Altyazı stillerini uygula
@@ -1827,42 +1817,33 @@ function applySubtitleStyles() {
     appState.subtitleSettings.bgOpacity
   );
   
-  // Tüm transform ve konum stillerini sıfırla
-  videoSubtitle.style.transform = 'none';
-  videoSubtitle.style.top = 'auto';
-  videoSubtitle.style.bottom = 'auto';
-  
   // Önceden tanımlanmış konum ayarı
   const position = appState.subtitleSettings.position;
   const verticalPosition = appState.subtitleSettings.verticalPosition;
   
-  // Dikey konumlandırma - Doğrudan video yüksekliği boyunca hareket
-  // verticalPosition: 0 = en üst, 100 = en alt
-  const videoPlayer = document.getElementById('video-player');
-  const videoHeight = videoPlayer.clientHeight;
+  // Dikey konum ayarını serbest şekilde uygula
+  // Bu, CSS'in bottom veya top özelliğini serbest şekilde kontrol eder
+  // 0 = en üst, 100 = en alt
+  videoSubtitle.style.transform = 'none'; // Transform'u sıfırla
   
   if (position === 'top') {
-    // Top konumunda 0-50 aralığında hareket eder (ekranın üst yarısı)
-    // verticalPosition: 0 = en üst, 50 = orta
-    const topOffset = (verticalPosition / 100) * (videoHeight / 2);
+    // Top pozisyonunda, verticalPosition değeri yukardaki boşluğu kontrol eder
+    const topOffset = (verticalPosition / 100) * 60; // 0-60px arasında
+    videoSubtitle.style.bottom = 'auto';
     videoSubtitle.style.top = `${topOffset}px`;
+  } else if (position === 'middle') {
+    // Middle pozisyonunda, verticalPosition değeri orta noktadan sapmayı kontrol eder
+    // 50 = tam orta, 0 = üste yakın, 100 = alta yakın
+    const offsetFromMiddle = ((verticalPosition - 50) / 50) * 30; // -30px - +30px
     videoSubtitle.style.bottom = 'auto';
-  } 
-  else if (position === 'middle') {
-    // Middle konumunda ekranın ortasında hareket eder
-    // verticalPosition: 0 = ortanın üstü, 100 = ortanın altı
-    // Merkezi konum referans alınır
-    const middleOffset = ((verticalPosition - 50) / 100) * videoHeight;
-    videoSubtitle.style.top = `calc(50% + ${middleOffset}px)`;
+    videoSubtitle.style.top = `calc(50% + ${offsetFromMiddle}px)`;
     videoSubtitle.style.transform = 'translateY(-50%)';
-    videoSubtitle.style.bottom = 'auto';
-  }
-  else {
-    // Bottom konumunda 50-100 aralığında hareket eder (ekranın alt yarısı)
-    // verticalPosition: 50 = orta, 100 = en alt
-    const bottomOffset = ((100 - verticalPosition) / 100) * (videoHeight / 2);
-    videoSubtitle.style.bottom = `${bottomOffset}px`;
+  } else {
+    // Bottom pozisyonunda, verticalPosition değeri alttaki boşluğu kontrol eder
+    // 100 = en alt, 0 = daha yukarıda
+    const bottomSpace = 120 - (verticalPosition * 1.1); // 120px'e kadar boşluk
     videoSubtitle.style.top = 'auto';
+    videoSubtitle.style.bottom = `${bottomSpace}px`;
   }
 }
 
@@ -2045,9 +2026,6 @@ async function selectEmbeddedSubtitle(videoPath, streamIndex) {
     // Modal penceresini kapat
     embeddedSubtitlesModal.style.display = 'none';
     
-    // Mevcut altyazı verilerini temizle
-    clearSubtitles();
-    
     // Altyazıyı çıkart
     const subtitlePath = await window.electronAPI.extractEmbeddedSubtitle({
       videoPath: videoPath,
@@ -2113,32 +2091,3 @@ verticalPositionInput.addEventListener('input', () => {
   verticalPositionValue.textContent = `${position}%`;
   updateSubtitlePreview();
 });
-
-// Altyazı verilerini temizle
-function clearSubtitles() {
-  // Altyazı verisini temizle
-  appState.subtitles = [];
-  appState.subtitlePath = null;
-  appState.currentSubtitleIndex = -1;
-  appState.activeSubtitleIndex = -1;
-  
-  // Altyazı gösterimini temizle
-  videoSubtitle.textContent = '';
-  videoSubtitle.style.display = 'none';
-  
-  // Altyazı listesini temizle
-  subtitleList.innerHTML = '';
-  subtitleList.innerHTML = `
-    <div class="subtitle-placeholder">
-      No subtitles loaded. Select a subtitle file or use embedded subtitles.
-    </div>
-  `;
-  
-  // Altyazı yolu gösterimini temizle
-  subtitlePathDisplay.textContent = 'Subtitles: Not Selected';
-  
-  // Zaman çizelgesini temizle
-  timelineTrack.innerHTML = '';
-  
-  console.log('Subtitle data cleared');
-}

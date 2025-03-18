@@ -38,3 +38,5 @@ backup/
 
 # Cursor editor related
 .cursor 
+
+anki_tool_v2.py
