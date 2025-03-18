@@ -15,9 +15,9 @@ const audioConversionCache = {
     try {
       const cachePath = path.join(app.getPath('userData'), 'audio-conversion-cache.json');
       fs.writeFileSync(cachePath, JSON.stringify(this.conversions), 'utf8');
-      console.log('Dönüştürme önbelleği kaydedildi:', cachePath);
+      console.log('Audio conversion cache saved:', cachePath);
     } catch (error) {
-      console.error('Dönüştürme önbelleği kaydedilemedi:', error);
+      console.error('Could not save conversion cache:', error);
     }
   },
   
@@ -662,7 +662,7 @@ ipcMain.handle('check-and-convert-audio', async (event, videoPath) => {
     const convertedPath = await checkAndConvertAudio(videoPath);
     return convertedPath;
   } catch (error) {
-    console.error('Ses dönüştürme hatası:', error);
+    console.error('Audio conversion error:', error);
     // Hata durumunda orijinal dosyayı döndür
     return videoPath;
   }
@@ -671,34 +671,85 @@ ipcMain.handle('check-and-convert-audio', async (event, videoPath) => {
 // Video dosyasındaki dahili altyazıları listele
 async function listEmbeddedSubtitles(videoPath) {
   return new Promise((resolve, reject) => {
-    // FFprobe ile video dosyasındaki stream bilgilerini al
+    // FFprobe ile video dosyasındaki stream bilgilerini al - geçici dosyaya yönlendir
+    const tempOutputPath = path.join(os.tmpdir(), `ffprobe_output_${Date.now()}.json`);
+    console.log(`Saving FFprobe output to temporary file: ${tempOutputPath}`);
+    
+    // İlk önce videodan tüm stream bilgilerini alalım (daha geniş bilgi için) ve dosyaya kaydedelim
+    const ffprobeFullInfo = spawn('ffprobe', [
+      '-v', 'quiet',
+      '-print_format', 'json',
+      '-show_format',
+      '-show_streams',
+      videoPath,
+      '-o', tempOutputPath
+    ]);
+
+    ffprobeFullInfo.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`FFprobe process failed (full info), code: ${code}`);
+      } else {
+        console.log('FFprobe full info saved successfully');
+      }
+      
+      // Şimdi sadece altyazı stream'lerini içeren daha spesifik bir sorgu yapalım
     const ffprobe = spawn('ffprobe', [
-      '-v', 'error',
-      '-show_entries', 'stream=index,codec_type,codec_name,tags',
+        '-v', 'quiet',
+        '-print_format', 'json',
+        '-show_streams',
       '-select_streams', 's',  // Sadece altyazı stream'lerini seç
-      '-of', 'json',
       videoPath
     ]);
 
     let outputData = '';
     ffprobe.stdout.on('data', (data) => {
-      outputData += data.toString();
+        const dataStr = data.toString();
+        outputData += dataStr;
     });
 
     ffprobe.stderr.on('data', (data) => {
-      console.error(`FFprobe hata: ${data}`);
+        console.error(`FFprobe error: ${data}`);
     });
 
-    ffprobe.on('close', (code) => {
+      ffprobe.on('close', async (code) => {
       if (code !== 0) {
-        console.error(`FFprobe işlemi başarısız oldu, kod: ${code}`);
-        reject(new Error(`FFprobe işlemi başarısız oldu, kod: ${code}`));
+          console.error(`FFprobe process failed, code: ${code}`);
+          reject(new Error(`FFprobe process failed, code: ${code}`));
         return;
       }
 
       try {
+          // Geçici dosyadan tam bilgileri oku (varsa)
+          let fullStreamInfo = {};
+          if (fs.existsSync(tempOutputPath)) {
+            try {
+              const fullInfoContent = fs.readFileSync(tempOutputPath, 'utf8');
+              fullStreamInfo = JSON.parse(fullInfoContent);
+              console.log('Full stream info loaded from temp file');
+            } catch (err) {
+              console.error('Error reading temp file:', err);
+            }
+          }
+          
         // JSON çıktısını ayrıştır
-        const result = JSON.parse(outputData);
+          let result;
+          try {
+            result = JSON.parse(outputData);
+            console.log('Subtitle streams JSON parsed successfully');
+          } catch (jsonErr) {
+            console.error('Error parsing subtitle streams JSON:', jsonErr);
+            console.log('Raw output data:', outputData);
+            // Fallback mechanism: try to use full info if available
+            if (Object.keys(fullStreamInfo).length > 0) {
+              result = { streams: fullStreamInfo.streams.filter(s => s.codec_type === 'subtitle') };
+              console.log('Using full info as fallback for subtitle streams');
+            } else {
+              throw jsonErr;
+            }
+          }
+          
+          // Tüm çıktıyı logla
+          console.log('FFprobe subtitle streams result:', JSON.stringify(result, null, 2));
         
         // Dil kodlarını insan tarafından okunabilir isimlere çevir
         const languageNames = {
@@ -716,11 +767,13 @@ async function listEmbeddedSubtitles(videoPath) {
           'heb': 'Hebrew',
           'hin': 'Hindi',
           'hun': 'Hungarian',
+            'hrv': 'Croatian',
           'ind': 'Indonesian',
           'ita': 'Italian',
           'jpn': 'Japanese',
           'kor': 'Korean',
           'may': 'Malay',
+            'nob': 'Norwegian',
           'nor': 'Norwegian',
           'pol': 'Polish',
           'por': 'Portuguese',
@@ -732,51 +785,355 @@ async function listEmbeddedSubtitles(videoPath) {
           'ukr': 'Ukrainian',
           'vie': 'Vietnamese'
         };
+          
+          // Altyazı isimlerini tanıma desenleri
+          const subtitlePatterns = {
+            sdh: { pattern: /\b(sdh|cc|closed\s*caption)\b/i, name: 'SDH' },
+            european: { pattern: /\b(european|europe|eu)\b/i, name: 'European' },
+            brazilian: { pattern: /\b(brazilian|brazil|português)\b/i, name: 'Brazilian' },
+            simplified: { pattern: /\b(simplified|simple)\b/i, name: 'Simplified' },
+            traditional: { pattern: /\b(traditional)\b/i, name: 'Traditional' },
+            latinAmerican: { pattern: /\b(latin|latino|latinoamérica)\b/i, name: 'Latin American' },
+            canadian: { pattern: /\b(canadian|canada)\b/i, name: 'Canadian' },
+            forced: { pattern: /\b(forced|force)\b/i, name: 'Forced' }
+        };
         
         // Altyazı stream'lerini işle
         const subtitles = result.streams.map(stream => {
-          // Dil bilgisini al
+            // Stream index'i kesinlikle tanımla
+            const streamIndex = stream.index || 0;
+            
+            // Dil tanıma
           let language = 'Unknown';
           let title = '';
+            let specialFeature = '';
           
+            // Etkinleştirilen tüm debug logları
+            console.log(`Stream #${streamIndex} all properties:`, stream);
+            
+            // Karmaşık tag yapısını kontrol et
+            let tags = {};
           if (stream.tags) {
-            if (stream.tags.language) {
-              // Dil kodu varsa, tanımlı isimlerden al veya kodu kullan
-              language = languageNames[stream.tags.language] || stream.tags.language;
+              tags = stream.tags;
+              console.log(`Stream #${streamIndex} tags:`, tags);
             }
-            if (stream.tags.title) {
-              title = stream.tags.title;
+            
+            // DİL TESPİTİ
+            // 1. Doğrudan dil kodu etiketinden tespit
+            if (tags.language) {
+              const langCode = tags.language.toLowerCase();
+              language = languageNames[langCode] || langCode;
+              console.log(`Stream #${streamIndex} language from tag:`, language);
+            } 
+            
+            // 2. Başlık etiketinden bilgileri al
+            if (tags.title) {
+              title = tags.title;
+              console.log(`Stream #${streamIndex} title:`, title);
+              
+              // Başlık içeriğinden özel özellik tespiti
+              for (const [key, pattern] of Object.entries(subtitlePatterns)) {
+                if (pattern.pattern.test(title)) {
+                  specialFeature = pattern.name;
+                  console.log(`Stream #${streamIndex} special feature detected:`, specialFeature);
+                  break;
+                }
+              }
+            }
+            
+            // 3. Diğer meta etiketlerden dil tespiti
+            if (language === 'Unknown' && title && title.length <= 20) {
+              // Başlık kısa ise bir dil kodu veya dil adı olabilir
+              const potentialLang = title.toLowerCase();
+              for (const [code, name] of Object.entries(languageNames)) {
+                if (potentialLang.includes(code.toLowerCase()) || potentialLang.includes(name.toLowerCase())) {
+                  language = name;
+                  console.log(`Stream #${streamIndex} language from title:`, language);
+                  break;
+                }
+              }
+            }
+            
+            // DISPLAY NAME OLUŞTURMA
+            let displayName;
+            
+            // Dinamik dil tespiti - dil kodu ve başlık bilgilerini kullan
+            // Bu kısımda sabit indeks eşlemesi yerine dinamik tespit yapalım
+            
+            // a) Özel durumlar için başlık temelli doğrudan eşleştirme
+            if (title && title.includes("SDH")) {
+              displayName = `English [SDH]`;
+            }
+            else if (title && title.includes("Turkish")) {
+              displayName = "Turkish";
+            }
+            else if (title && title.includes("Arabic")) {
+              displayName = "Arabic";
+            }
+            else if (title && title.includes("Chinese Simplified")) {
+              displayName = "Chinese [Simplified]";
+            }
+            else if (title && title.includes("Chinese Traditional")) {
+              displayName = "Chinese [Traditional]";
+            }
+            else if (title && title.includes("Czech")) {
+              displayName = "Czech";
+            }
+            else if (title && title.includes("Danish")) {
+              displayName = "Danish";
+            }
+            else if (title && title.includes("Dutch")) {
+              displayName = "Dutch";
+            }
+            else if (title && title.includes("European Spanish")) {
+              displayName = "Spanish [European]";
+            }
+            else if (title && title.includes("Latin America Spanish")) {
+              displayName = "Spanish [Latin American]";
+            }
+            else if (title && title.includes("Finnish")) {
+              displayName = "Finnish";
+            }
+            else if (title && title.includes("French Canadian")) {
+              displayName = "French [Canadian]";
+            }
+            else if (title && title.includes("French")) {
+              displayName = "French";
+            }
+            else if (title && title.includes("German")) {
+              displayName = "German";
+            }
+            else if (title && title.includes("Greek")) {
+              displayName = "Greek";
+            }
+            else if (title && title.includes("Hebrew")) {
+              displayName = "Hebrew";
+            }
+            else if (title && title.includes("Hindi")) {
+              displayName = "Hindi";
+            }
+            else if (title && title.includes("Hungarian")) {
+              displayName = "Hungarian";
+            }
+            else if (title && title.includes("Indonesian")) {
+              displayName = "Indonesian";
+            }
+            else if (title && title.includes("Italian")) {
+              displayName = "Italian";
+            }
+            else if (title && title.includes("Japanese")) {
+              displayName = "Japanese";
+            }
+            else if (title && title.includes("Korean")) {
+              displayName = "Korean";
+            }
+            else if (title && title.includes("Malay")) {
+              displayName = "Malay";
+            }
+            else if (title && title.includes("Norwegian")) {
+              displayName = "Norwegian";
+            }
+            else if (title && title.includes("Polish")) {
+              displayName = "Polish";
+            }
+            else if (title && title.includes("Portuguese Brazilian")) {
+              displayName = "Portuguese [Brazilian]";
+            }
+            else if (title && title.includes("Portuguese")) {
+              displayName = "Portuguese";
+            }
+            else if (title && title.includes("Romanian")) {
+              displayName = "Romanian";
+            }
+            else if (title && title.includes("Russian")) {
+              displayName = "Russian";
+            }
+            else if (title && title.includes("Swedish")) {
+              displayName = "Swedish";
+            }
+            else if (title && title.includes("Thai")) {
+              displayName = "Thai";
+            }
+            else if (title && title.includes("Turkish")) {
+              displayName = "Turkish";
+            }
+            else if (title && title.includes("Ukrainian")) {
+              displayName = "Ukrainian";
+            }
+            else if (title && title.includes("Vietnamese")) {
+              displayName = "Vietnamese";
+            }
+            // b) Dil kodu temelli tespit
+            else if (tags.language) {
+              // Bu kontrol önemli - bir dil kodu varsa, başlık olmasa bile ismini biliyoruz
+              const langCode = tags.language.toLowerCase();
+              if (langCode === 'eng') {
+                // İngilizce için SDH kontrolü
+                if (title && (title.includes("SDH") || title.includes("CC") || title.includes("Closed"))) {
+                  displayName = "English [SDH]";
+                } else {
+                  displayName = "English";
+                }
+              } 
+              else if (langCode === 'tur') {
+                displayName = "Turkish";
+              }
+              else if (langCode === 'ara') {
+                displayName = "Arabic";
+              }
+              else if (langCode === 'chi') {
+                if (title && title.includes("Simplified")) {
+                  displayName = "Chinese [Simplified]";
+                } else if (title && title.includes("Traditional")) {
+                  displayName = "Chinese [Traditional]";
+                } else {
+                  displayName = "Chinese";
+                }
+              }
+              else if (langCode === 'cze') {
+                displayName = "Czech";
+              }
+              else if (langCode === 'dan') {
+                displayName = "Danish";
+              }
+              else if (langCode === 'dut') {
+                displayName = "Dutch";
+              }
+              else if (langCode === 'fin') {
+                displayName = "Finnish";
+              }
+              else if (langCode === 'fre') {
+                if (title && title.includes("Canadian")) {
+                  displayName = "French [Canadian]";
+                } else {
+                  displayName = "French";
+                }
+              }
+              else if (langCode === 'ger') {
+                displayName = "German";
+              }
+              else if (langCode === 'gre') {
+                displayName = "Greek";
+              }
+              else if (langCode === 'heb') {
+                displayName = "Hebrew";
+              }
+              else if (langCode === 'hin') {
+                displayName = "Hindi";
+              }
+              else if (langCode === 'hun') {
+                displayName = "Hungarian";
+              }
+              else if (langCode === 'ind') {
+                displayName = "Indonesian";
+              }
+              else if (langCode === 'ita') {
+                displayName = "Italian";
+              }
+              else if (langCode === 'jpn') {
+                displayName = "Japanese";
+              }
+              else if (langCode === 'kor') {
+                displayName = "Korean";
+              }
+              else if (langCode === 'may') {
+                displayName = "Malay";
+              }
+              else if (langCode === 'nor' || langCode === 'nob') {
+                displayName = "Norwegian";
+              }
+              else if (langCode === 'pol') {
+                displayName = "Polish";
+              }
+              else if (langCode === 'por') {
+                if (title && title.includes("Brazilian")) {
+                  displayName = "Portuguese [Brazilian]";
+                } else {
+                  displayName = "Portuguese";
+                }
+              }
+              else if (langCode === 'rum') {
+                displayName = "Romanian";
+              }
+              else if (langCode === 'rus') {
+                displayName = "Russian";
+              }
+              else if (langCode === 'spa') {
+                if (title && (title.includes("European") || title.includes("Spain"))) {
+                  displayName = "Spanish [European]";
+                } else if (title && (title.includes("Latin") || title.includes("LATAM"))) {
+                  displayName = "Spanish [Latin American]";
+                } else {
+                  displayName = "Spanish";
+                }
+              }
+              else if (langCode === 'swe') {
+                displayName = "Swedish";
+              }
+              else if (langCode === 'tha') {
+                displayName = "Thai";
+              }
+              else if (langCode === 'tur') {
+                displayName = "Turkish";
+              }
+              else if (langCode === 'ukr') {
+                displayName = "Ukrainian";
+              }
+              else if (langCode === 'vie') {
+                displayName = "Vietnamese";
+              }
+              else {
+                // Başka bir dil kodu varsa ve yukarıdakilerle eşleşmiyorsa
+                // Tanımlanmış isim varsa kullan, yoksa kod olarak göster
+                displayName = languageNames[langCode] || `Unknown (${langCode})`;
+              }
+            }
+            // c) Yukarıdaki özel durumlar yakalanmadıysa, genel mantıkla oluştur
+            else {
+              // Standart display name oluşturma
+              if (language !== 'Unknown') {
+                if (specialFeature) {
+                  displayName = `${language} [${specialFeature}]`;
+                } else {
+                  displayName = language;
+                }
+              } else if (title) {
+                displayName = title;
+              } else {
+                displayName = `Stream #${streamIndex}`;
             }
           }
           
           return {
-            index: stream.index,
-            codec: stream.codec_name,
+              index: streamIndex,
+              codec: stream.codec_name || 'Unknown',
             language: language,
             title: title,
-            displayName: title ? `${language} - ${title}` : language
+              specialFeature: specialFeature,
+              displayName: displayName
           };
         });
         
+          // Geçici dosyayı temizle
+          if (fs.existsSync(tempOutputPath)) {
+            try {
+              fs.unlinkSync(tempOutputPath);
+              console.log('Temp file cleaned up');
+            } catch (err) {
+              console.warn('Could not clean up temp file:', err);
+            }
+          }
+          
+          console.log('Final processed subtitles:', subtitles);
         resolve(subtitles);
       } catch (error) {
-        console.error('FFprobe çıktısı ayrıştırma hatası:', error);
+          console.error('FFprobe output parsing error:', error);
         reject(error);
       }
+      });
     });
   });
 }
-
-// IPC handler ekle - dahili altyazıları listele
-ipcMain.handle('list-embedded-subtitles', async (event, videoPath) => {
-  try {
-    const subtitles = await listEmbeddedSubtitles(videoPath);
-    return subtitles;
-  } catch (error) {
-    console.error('Dahili altyazıları listeleme hatası:', error);
-    return [];
-  }
-});
 
 // Dahili altyazıyı çıkart
 async function extractEmbeddedSubtitle(videoPath, streamIndex, outputPath) {
@@ -831,5 +1188,16 @@ ipcMain.handle('extract-embedded-subtitle', async (event, args) => {
   } catch (error) {
     console.error('Altyazı çıkartma hatası:', error);
     throw error;
+  }
+});
+
+// IPC handler ekle - dahili altyazıları listele
+ipcMain.handle('list-embedded-subtitles', async (event, videoPath) => {
+  try {
+    const subtitles = await listEmbeddedSubtitles(videoPath);
+    return subtitles;
+  } catch (error) {
+    console.error('Dahili altyazıları listeleme hatası:', error);
+    return [];
   }
 }); 

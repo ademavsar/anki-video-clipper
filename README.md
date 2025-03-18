@@ -13,6 +13,7 @@ An Electron-based application for creating Anki cards while watching films.
 - Anki integration (via AnkiConnect API)
 - FFmpeg integration for video clip extraction
 - Support for various subtitle formats (SRT, ASS, VTT)
+- Smart embedded subtitle language detection with visual highlighting for special formats
 
 ## Screenshots
 
@@ -106,6 +107,7 @@ The application uses the following technologies:
 - [x] Clip creation
 - [x] FFmpeg integration
 - [x] AnkiConnect integration
+- [x] Smart embedded subtitle language detection with special format highlighting
 - [ ] Light/Dark theme support
 - [ ] Enhanced subtitle settings and customization
 - [ ] UI/UX improvements
@@ -119,7 +121,6 @@ The application uses the following technologies:
 
 ## Known Issues
 
-- [ ] Embedded subtitle language detection not working correctly
 - [ ] Some subtitle formatting lost during import
 - [ ] Timeline zoom needs improvement on high-resolution screens
 - [ ] Video player controls overlap with subtitles in some cases

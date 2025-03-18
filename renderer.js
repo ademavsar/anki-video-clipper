@@ -1867,35 +1867,71 @@ async function checkEmbeddedSubtitles(videoPath) {
 
 // Dahili altyazı modal penceresini göster
 function showEmbeddedSubtitlesModal(videoPath, subtitles) {
+  // Debug için subtitle içeriğini logla
+  console.log('Displaying embedded subtitles:', subtitles);
+  
   // Modal içeriğini temizle
   embeddedSubtitlesList.innerHTML = '';
   
+  // Altyazı sayısı için bilgi göster
+  const totalSubtitles = subtitles.length;
+  const infoEl = document.createElement('div');
+  infoEl.className = 'embedded-subtitles-info';
+  infoEl.textContent = `${totalSubtitles} embedded subtitles found`;
+  embeddedSubtitlesList.appendChild(infoEl);
+  
   // Her bir altyazı için bir öğe oluştur
   subtitles.forEach(subtitle => {
+    // Debug: Her altyazıyı detaylıca logla
+    console.log(`Creating UI element for subtitle [Stream #${subtitle.index}]:`, subtitle);
+    console.log(`  - Display Name: ${subtitle.displayName}`);
+    console.log(`  - Language: ${subtitle.language}`);
+    console.log(`  - Title: ${subtitle.title}`);
+    console.log(`  - Codec: ${subtitle.codec}`);
+    
     const subtitleItem = document.createElement('div');
     subtitleItem.className = 'embedded-subtitle-item';
     
     const infoDiv = document.createElement('div');
     infoDiv.className = 'embedded-subtitle-info';
     
+    // Ana dil ve başlık bilgisi
     const languageDiv = document.createElement('div');
     languageDiv.className = 'embedded-subtitle-language';
-    languageDiv.textContent = subtitle.language;
     
-    const titleDiv = document.createElement('div');
-    titleDiv.className = 'embedded-subtitle-title';
-    titleDiv.textContent = subtitle.title || '';
+    // displayName değişkenini kullan. Ana dil görünümünü oluştur
+    let displayText = subtitle.displayName || `Stream #${subtitle.index}`;
     
-    const codecDiv = document.createElement('div');
-    codecDiv.className = 'embedded-subtitle-codec';
-    codecDiv.textContent = `Codec: ${subtitle.codec}`;
+    // Dilde özel durum (SDH/Simplified vb) varsa, vurgulama efekti ekle
+    if (displayText.includes('[') && displayText.includes(']')) {
+      const parts = displayText.split('[');
+      const language = parts[0].trim();
+      const special = parts[1].replace(']', '').trim();
+      
+      // Özel formatlı display name oluştur
+      languageDiv.innerHTML = `${language} <span style="color: #29b6f6; font-weight: bold;">[${special}]</span>`;
+    } else {
+      languageDiv.textContent = displayText;
+    }
     
-    infoDiv.appendChild(languageDiv);
-    if (subtitle.title) {
+    // Başlık bilgisi varsa ve display name'de olmayan bir içerik ise göster
+    if (subtitle.title && !displayText.includes(subtitle.title) && subtitle.title !== subtitle.language) {
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'embedded-subtitle-title';
+      titleDiv.textContent = subtitle.title;
       infoDiv.appendChild(titleDiv);
     }
+    
+    // Ek bilgiler
+    const codecDiv = document.createElement('div');
+    codecDiv.className = 'embedded-subtitle-codec';
+    codecDiv.textContent = `Stream #${subtitle.index} • Codec: ${subtitle.codec}`;
+    
+    // Öğeleri ekle
+    infoDiv.appendChild(languageDiv);
     infoDiv.appendChild(codecDiv);
     
+    // Seçim butonu
     const selectBtn = document.createElement('button');
     selectBtn.className = 'embedded-subtitle-select-btn';
     selectBtn.textContent = 'Select';
@@ -1906,6 +1942,12 @@ function showEmbeddedSubtitlesModal(videoPath, subtitles) {
     
     embeddedSubtitlesList.appendChild(subtitleItem);
   });
+  
+  // Bilgilendirme notu ekle
+  const noteEl = document.createElement('div');
+  noteEl.className = 'embedded-subtitles-note';
+  noteEl.innerHTML = 'Note: Subtitle language information is derived from video metadata and may not always be accurate.';
+  embeddedSubtitlesList.appendChild(noteEl);
   
   // Modal penceresini göster
   embeddedSubtitlesModal.style.display = 'block';
