@@ -690,7 +690,6 @@ body {
 /* Video Altyazı Stili */
 .video-subtitle {
   position: absolute;
-  bottom: 60px; /* Video kontrollerinin üzerinde */
   left: 0;
   right: 0;
   text-align: center;
@@ -699,12 +698,13 @@ body {
   font-weight: bold;
   text-shadow: 0 0 4px black, 0 0 4px black, 0 0 4px black, 0 0 4px black;
   padding: 10px;
-  z-index: 10;
+  z-index: 15; /* Video kontrollerinin üstünde görünmesi için yeterince yüksek */
   pointer-events: none; /* Tıklamaları video oynatıcıya geçir */
   background-color: rgba(0, 0, 0, 0.5);
   max-width: 80%;
   margin: 0 auto;
   border-radius: 4px;
+  transition: all 0.2s ease; /* Konum değişimlerini yumuşat */
 }
 
 /* Modal Pencere Stilleri */
@@ -842,12 +842,52 @@ body {
 }
 
 .setting-item select {
+  width: 100%;
   padding: 5px;
-  background-color: #3c3c3c;
-  border: 1px solid #555;
+  margin-top: 5px;
   border-radius: 4px;
+  border: 1px solid #444;
+  background-color: #333;
   color: #f0f0f0;
+  appearance: none; /* Standart dropdown görünümünü kaldır */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg fill='%23999' height='24' viewBox='0 0 24 24' width='24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 5px center;
+  padding-right: 25px;
+}
+
+.setting-item select:focus {
+  border-color: #0078d7;
+  outline: none;
+}
+
+.font-style-controls {
+  display: flex;
+  gap: 15px;
+  margin-top: 5px;
+}
+
+.toggle-control {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.toggle-control input[type="checkbox"] {
+  margin-right: 5px;
+}
+
+.toggle-label {
   font-size: 14px;
+}
+
+.help-text {
+  display: block;
+  font-size: 12px;
+  color: #777;
+  margin-top: 4px;
 }
 
 /* Altyazı Önizleme */

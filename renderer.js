@@ -56,11 +56,16 @@ const ankiProgressText = document.getElementById('anki-progress-text');
 // Ayar kontrolleri
 const fontSizeInput = document.getElementById('subtitle-font-size');
 const fontSizeValue = document.getElementById('subtitle-font-size-value');
+const fontFamilySelect = document.getElementById('subtitle-font-family');
+const fontBoldCheckbox = document.getElementById('subtitle-font-bold');
+const fontItalicCheckbox = document.getElementById('subtitle-font-italic');
 const fontColorInput = document.getElementById('subtitle-font-color');
 const bgColorInput = document.getElementById('subtitle-bg-color');
 const bgOpacityInput = document.getElementById('subtitle-bg-opacity');
 const bgOpacityValue = document.getElementById('subtitle-bg-opacity-value');
 const positionSelect = document.getElementById('subtitle-position');
+const verticalPositionInput = document.getElementById('subtitle-vertical-position');
+const verticalPositionValue = document.getElementById('subtitle-vertical-position-value');
 const autoScrollCheckbox = document.getElementById('subtitle-auto-scroll');
 const highlightCheckbox = document.getElementById('subtitle-highlight');
 const subtitlePreview = document.getElementById('subtitle-preview');
@@ -160,10 +165,14 @@ let appState = {
   },
   subtitleSettings: {
     fontSize: 18,
+    fontFamily: 'Arial, sans-serif',
+    fontBold: false,
+    fontItalic: false,
     fontColor: '#ffffff',
     bgColor: '#000000',
     bgOpacity: 0.5,
     position: 'bottom',
+    verticalPosition: 90, // 0: en üst, 100: en alt
     autoScroll: true,
     highlight: true
   },
@@ -184,6 +193,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Diğer yüklemeleri yap
   // loadLastUsedFiles(); // Son kullanılan dosyaları hatırlama özelliği kapatıldı
   loadSubtitleSettings();
+  
+  // Değerleri başlangıçta göster
+  const bgOpacity = bgOpacityInput.value;
+  const percentage = Math.round(bgOpacity * 100);
+  bgOpacityValue.textContent = `${percentage}%`;
+  
+  const verticalPos = verticalPositionInput.value;
+  verticalPositionValue.textContent = `${verticalPos}%`;
   
   // Pencere boyutu değiştiğinde panel genişliklerini korumak için
   window.addEventListener('resize', () => {
@@ -1658,10 +1675,14 @@ window.addEventListener('click', (event) => {
 saveSettingsBtn.addEventListener('click', () => {
   // Form değerlerini al ve appState'e kaydet
   appState.subtitleSettings.fontSize = parseInt(fontSizeInput.value);
+  appState.subtitleSettings.fontFamily = fontFamilySelect.value;
+  appState.subtitleSettings.fontBold = fontBoldCheckbox.checked;
+  appState.subtitleSettings.fontItalic = fontItalicCheckbox.checked;
   appState.subtitleSettings.fontColor = fontColorInput.value;
   appState.subtitleSettings.bgColor = bgColorInput.value;
   appState.subtitleSettings.bgOpacity = parseFloat(bgOpacityInput.value);
   appState.subtitleSettings.position = positionSelect.value;
+  appState.subtitleSettings.verticalPosition = parseInt(verticalPositionInput.value);
   appState.subtitleSettings.autoScroll = autoScrollCheckbox.checked;
   appState.subtitleSettings.highlight = highlightCheckbox.checked;
   
@@ -1680,10 +1701,14 @@ resetSettingsBtn.addEventListener('click', () => {
   // Varsayılan ayarları yükle
   const defaultSettings = {
     fontSize: 18,
+    fontFamily: 'Arial, sans-serif',
+    fontBold: false,
+    fontItalic: false,
     fontColor: '#ffffff',
     bgColor: '#000000',
     bgOpacity: 0.5,
     position: 'bottom',
+    verticalPosition: 90, // 0: en üst, 100: en alt
     autoScroll: true,
     highlight: true
   };
@@ -1699,10 +1724,14 @@ resetSettingsBtn.addEventListener('click', () => {
 
 // Ayar değişikliklerinde önizlemeyi güncelle
 fontSizeInput.addEventListener('input', updateSubtitlePreview);
+fontFamilySelect.addEventListener('change', updateSubtitlePreview);
+fontBoldCheckbox.addEventListener('change', updateSubtitlePreview);
+fontItalicCheckbox.addEventListener('change', updateSubtitlePreview);
 fontColorInput.addEventListener('input', updateSubtitlePreview);
 bgColorInput.addEventListener('input', updateSubtitlePreview);
 bgOpacityInput.addEventListener('input', updateSubtitlePreview);
 positionSelect.addEventListener('change', updateSubtitlePreview);
+verticalPositionInput.addEventListener('input', updateSubtitlePreview);
 
 // Yazı boyutu değerini göster
 fontSizeInput.addEventListener('input', () => {
@@ -1720,6 +1749,9 @@ function loadCurrentSettings() {
   fontSizeInput.value = appState.subtitleSettings.fontSize;
   fontSizeValue.textContent = `${appState.subtitleSettings.fontSize}px`;
   
+  fontFamilySelect.value = appState.subtitleSettings.fontFamily;
+  fontBoldCheckbox.checked = appState.subtitleSettings.fontBold;
+  fontItalicCheckbox.checked = appState.subtitleSettings.fontItalic;
   fontColorInput.value = appState.subtitleSettings.fontColor;
   bgColorInput.value = appState.subtitleSettings.bgColor;
   
@@ -1728,6 +1760,7 @@ function loadCurrentSettings() {
   bgOpacityValue.textContent = `${opacityPercent}%`;
   
   positionSelect.value = appState.subtitleSettings.position;
+  verticalPositionInput.value = appState.subtitleSettings.verticalPosition;
   autoScrollCheckbox.checked = appState.subtitleSettings.autoScroll;
   highlightCheckbox.checked = appState.subtitleSettings.highlight;
 }
@@ -1736,24 +1769,42 @@ function loadCurrentSettings() {
 function updateSubtitlePreview() {
   // Form değerlerini al
   const fontSize = fontSizeInput.value;
+  const fontFamily = fontFamilySelect.value;
+  const fontBold = fontBoldCheckbox.checked;
+  const fontItalic = fontItalicCheckbox.checked;
   const fontColor = fontColorInput.value;
   const bgColor = bgColorInput.value;
   const bgOpacity = bgOpacityInput.value;
   
   // Önizleme stillerini güncelle
   subtitlePreview.style.fontSize = `${fontSize}px`;
+  subtitlePreview.style.fontFamily = fontFamily;
+  subtitlePreview.style.fontWeight = fontBold ? 'bold' : 'normal';
+  subtitlePreview.style.fontStyle = fontItalic ? 'italic' : 'normal';
   subtitlePreview.style.color = fontColor;
   subtitlePreview.style.backgroundColor = `${hexToRgba(bgColor, bgOpacity)}`;
   
   // Konum ayarı (önizlemede tam olarak uygulanamaz, sadece bilgi amaçlı)
   const position = positionSelect.value;
+  const verticalPosition = verticalPositionInput.value;
+  
+  // Dikey konum bilgisi metni oluştur
+  let positionText;
+  let positionDetail;
+  
   if (position === 'top') {
-    subtitlePreview.setAttribute('data-position', 'Top');
+    positionText = 'Top';
+    positionDetail = verticalPosition < 50 ? 'Upper area' : 'Near middle';
   } else if (position === 'middle') {
-    subtitlePreview.setAttribute('data-position', 'Middle');
+    positionText = 'Middle';
+    positionDetail = verticalPosition < 50 ? 'Above center' : 'Below center';
   } else {
-    subtitlePreview.setAttribute('data-position', 'Bottom');
+    positionText = 'Bottom';
+    positionDetail = verticalPosition > 50 ? 'Lower area' : 'Near middle';
   }
+  
+  // Presets ve özel dikey konum bilgisini göster
+  subtitlePreview.setAttribute('data-position', `${positionText} (${positionDetail}, ${verticalPosition}%)`);
 }
 
 // Altyazı stillerini uygula
@@ -1762,24 +1813,51 @@ function applySubtitleStyles() {
   
   // Altyazı elementine stilleri uygula
   videoSubtitle.style.fontSize = `${appState.subtitleSettings.fontSize}px`;
+  videoSubtitle.style.fontFamily = appState.subtitleSettings.fontFamily;
+  videoSubtitle.style.fontWeight = appState.subtitleSettings.fontBold ? 'bold' : 'normal';
+  videoSubtitle.style.fontStyle = appState.subtitleSettings.fontItalic ? 'italic' : 'normal';
   videoSubtitle.style.color = appState.subtitleSettings.fontColor;
   videoSubtitle.style.backgroundColor = hexToRgba(
     appState.subtitleSettings.bgColor, 
     appState.subtitleSettings.bgOpacity
   );
   
-  // Konum ayarı
-  if (appState.subtitleSettings.position === 'top') {
+  // Tüm transform ve konum stillerini sıfırla
+  videoSubtitle.style.transform = 'none';
+  videoSubtitle.style.top = 'auto';
+  videoSubtitle.style.bottom = 'auto';
+  
+  // Önceden tanımlanmış konum ayarı
+  const position = appState.subtitleSettings.position;
+  const verticalPosition = appState.subtitleSettings.verticalPosition;
+  
+  // Dikey konumlandırma - Doğrudan video yüksekliği boyunca hareket
+  // verticalPosition: 0 = en üst, 100 = en alt
+  const videoPlayer = document.getElementById('video-player');
+  const videoHeight = videoPlayer.clientHeight;
+  
+  if (position === 'top') {
+    // Top konumunda 0-50 aralığında hareket eder (ekranın üst yarısı)
+    // verticalPosition: 0 = en üst, 50 = orta
+    const topOffset = (verticalPosition / 100) * (videoHeight / 2);
+    videoSubtitle.style.top = `${topOffset}px`;
     videoSubtitle.style.bottom = 'auto';
-    videoSubtitle.style.top = '60px';
-  } else if (appState.subtitleSettings.position === 'middle') {
-    videoSubtitle.style.bottom = 'auto';
-    videoSubtitle.style.top = '50%';
+  } 
+  else if (position === 'middle') {
+    // Middle konumunda ekranın ortasında hareket eder
+    // verticalPosition: 0 = ortanın üstü, 100 = ortanın altı
+    // Merkezi konum referans alınır
+    const middleOffset = ((verticalPosition - 50) / 100) * videoHeight;
+    videoSubtitle.style.top = `calc(50% + ${middleOffset}px)`;
     videoSubtitle.style.transform = 'translateY(-50%)';
-  } else {
-    videoSubtitle.style.bottom = '60px';
+    videoSubtitle.style.bottom = 'auto';
+  }
+  else {
+    // Bottom konumunda 50-100 aralığında hareket eder (ekranın alt yarısı)
+    // verticalPosition: 50 = orta, 100 = en alt
+    const bottomOffset = ((100 - verticalPosition) / 100) * (videoHeight / 2);
+    videoSubtitle.style.bottom = `${bottomOffset}px`;
     videoSubtitle.style.top = 'auto';
-    videoSubtitle.style.transform = 'none';
   }
 }
 
@@ -2011,4 +2089,19 @@ embeddedSubtitlesBtn.addEventListener('click', () => {
   } else {
     alert('No embedded subtitles found in this video file.');
   }
+});
+
+// Opasiteyi göster
+bgOpacityInput.addEventListener('input', () => {
+  const opacity = bgOpacityInput.value;
+  const percentage = Math.round(opacity * 100);
+  bgOpacityValue.textContent = `${percentage}%`;
+  updateSubtitlePreview();
+});
+
+// Dikey konumu göster
+verticalPositionInput.addEventListener('input', () => {
+  const position = verticalPositionInput.value;
+  verticalPositionValue.textContent = `${position}%`;
+  updateSubtitlePreview();
 });

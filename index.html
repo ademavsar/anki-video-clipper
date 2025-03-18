@@ -118,6 +118,31 @@
             <span id="subtitle-font-size-value">18px</span>
           </div>
           <div class="setting-item">
+            <label for="subtitle-font-family">Font Family:</label>
+            <select id="subtitle-font-family">
+              <option value="Arial, sans-serif">Arial</option>
+              <option value="Verdana, sans-serif">Verdana</option>
+              <option value="'Roboto', sans-serif">Roboto</option>
+              <option value="'Open Sans', sans-serif">Open Sans</option>
+              <option value="'Noto Sans', sans-serif">Noto Sans</option>
+              <option value="'Courier New', monospace">Courier New</option>
+              <option value="'Times New Roman', serif">Times New Roman</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="subtitle-font-style">Font Style:</label>
+            <div class="font-style-controls">
+              <label class="toggle-control">
+                <input type="checkbox" id="subtitle-font-bold">
+                <span class="toggle-label">Bold</span>
+              </label>
+              <label class="toggle-control">
+                <input type="checkbox" id="subtitle-font-italic">
+                <span class="toggle-label">Italic</span>
+              </label>
+            </div>
+          </div>
+          <div class="setting-item">
             <label for="subtitle-font-color">Font Color:</label>
             <input type="color" id="subtitle-font-color" value="#ffffff">
           </div>
@@ -128,12 +153,18 @@
             <span id="subtitle-bg-opacity-value">50%</span>
           </div>
           <div class="setting-item">
-            <label for="subtitle-position">Position:</label>
+            <label for="subtitle-position">Preset Position:</label>
             <select id="subtitle-position">
               <option value="bottom">Bottom</option>
               <option value="top">Top</option>
               <option value="middle">Middle</option>
             </select>
+          </div>
+          <div class="setting-item">
+            <label for="subtitle-vertical-position">Vertical Position:</label>
+            <input type="range" id="subtitle-vertical-position" min="0" max="100" value="90" step="1">
+            <span id="subtitle-vertical-position-value">90%</span>
+            <span class="help-text">(Position depends on selected preset: Top/Middle/Bottom)</span>
           </div>
         </div>
         <div class="settings-group">

@@ -108,9 +108,14 @@ The application uses the following technologies:
 - [x] FFmpeg integration
 - [x] AnkiConnect integration
 - [x] Smart embedded subtitle language detection with special format highlighting
-- [ ] Light/Dark theme support
-- [ ] Enhanced subtitle settings and customization
-- [ ] UI/UX improvements
+- [x] UI/UX improvements
+  - [x] Removed automatic DevTools opening on startup
+  - [x] Added proper application menu with File, Edit, View and Help options
+- [x] Enhanced subtitle settings and customization
+  - [x] Font family selection (Arial, Verdana, Roboto, Open Sans, Noto Sans, Courier New, Times New Roman)
+  - [x] Text formatting options (bold, italic)
+  - [x] Advanced vertical positioning with custom percentage values
+  - [x] Theme-consistent dropdown menus with custom styling
 - [ ] Better compatibility with various video codecs
 - [ ] First/Last frame capture feature for Anki cards
 - [ ] Drag and drop support for video and subtitle files

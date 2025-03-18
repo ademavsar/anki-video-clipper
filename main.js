@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -83,7 +83,61 @@ function createWindow() {
   mainWindow.loadFile('index.html');
 
   // Geliştirici araçlarını aç (geliştirme aşamasında)
-  mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
+}
+
+// Uygulama menüsünü oluştur
+function createApplicationMenu() {
+  const template = [
+    {
+      label: 'File',
+      submenu: [
+        { role: 'quit' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'toggleDevTools', label: 'Developer Tools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'About',
+          click: async () => {
+            dialog.showMessageBox({
+              title: 'About Anki Video Clipper',
+              message: 'Anki Video Clipper',
+              detail: 'An Electron-based application for creating Anki cards while watching films.\n\nVersion: 1.0.0'
+            });
+          }
+        }
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
 }
 
 // Electron hazır olduğunda pencereyi oluştur
@@ -92,6 +146,7 @@ app.whenReady().then(() => {
   audioConversionCache.load();
   
   createWindow();
+  createApplicationMenu();
 
   app.on('activate', function () {
     // macOS'ta dock ikonuna tıklandığında pencere yoksa yeniden oluştur
