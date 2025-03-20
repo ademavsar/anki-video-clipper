@@ -45,6 +45,7 @@ const ankiIdInput = document.getElementById('anki-id');
 const ankiVideoInput = document.getElementById('anki-video');
 const ankiFirstFrameInput = document.getElementById('anki-first-frame');
 const ankiLastFrameInput = document.getElementById('anki-last-frame');
+const ankiSubtitleInput = document.getElementById('anki-subtitle');
 const ankiWordInput = document.getElementById('anki-word');
 const ankiEnInput = document.getElementById('anki-en');
 const ankiTrInput = document.getElementById('anki-tr');
@@ -1345,12 +1346,14 @@ sendToAnkiBtn.addEventListener('click', () => {
   // İlk ve son kareler için dosya adları
   const firstFrameField = `_${clipId}_back.jpg`;
   const lastFrameField = `_${clipId}_front.jpg`;
+  const subtitleField = `_${clipId}.srt`;
   
   // Form alanlarını doldur
   ankiIdInput.value = clipId;
   ankiVideoInput.value = videoField;
   ankiFirstFrameInput.value = firstFrameField;
   ankiLastFrameInput.value = lastFrameField;
+  ankiSubtitleInput.value = subtitleField;
   
   // Eski word ve diğer alanlar artık dinamik olarak yüklenecek
   

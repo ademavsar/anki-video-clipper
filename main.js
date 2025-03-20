@@ -340,12 +340,19 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
     const frontFramePath = path.join(tempDir, `_${clipId}_front.jpg`);
     const backFramePath = path.join(tempDir, `_${clipId}_back.jpg`);
     
+    // SRT dosyası için yol belirle
+    const srtFilePath = path.join(tempDir, `_${clipId}.srt`);
+    
     // Klip oluştur
     await createVideoClip(videoPath, startTime, endTime, clipFilePath);
     
+    // Altyazı dosyasını oluştur
+    await extractSubtitleClip(videoPath, startTime, endTime, srtFilePath);
+    
     // Frame çıkarma ve yükleme başarısını takip etmek için değişkenler
     let firstFrameUploaded = !extractFirstFrame; // Eğer çıkarılmayacaksa başarılı kabul et
-    let lastFrameUploaded = !extractLastFrame;   // Eğer çıkarılmayacaksa başarılı kabul et
+    let lastFrameUploaded = !extractLastFrame;
+    let srtUploaded = false;
     
     // First frame ve last frame çıkarma işlemleri
     if (extractFirstFrame || extractLastFrame) {
@@ -417,6 +424,25 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
       }
     }
     
+    // SRT dosyasını Anki'ye gönder
+    if (fs.existsSync(srtFilePath)) {
+      const srtData = fs.readFileSync(srtFilePath, { encoding: 'base64' });
+      
+      // Yeniden deneme mantığı ile yükleme
+      srtUploaded = await retryAnkiConnectCall(async () => {
+        await invokeAnkiConnect('storeMediaFile', {
+          filename: `_${clipId}.srt`,
+          data: srtData
+        });
+        console.log(`SRT dosyası Anki media klasörüne eklendi: _${clipId}.srt`);
+        return true; // Başarılı
+      }, 3); // 3 kez deneme
+      
+      if (!srtUploaded) {
+        console.error('SRT dosyası 3 deneme sonunda yüklenemedi');
+      }
+    }
+    
     // Dosyayı base64'e çevir
     const videoData = fs.readFileSync(clipFilePath, { encoding: 'base64' });
     
@@ -442,6 +468,11 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
       fields: videoFields
     }];
     
+    // SRT dosya adını noteData'ya ekle
+    if (srtUploaded) {
+      noteData.fields.Subtitle = `_${clipId}.srt`;
+    }
+    
     // Anki'ye notu gönder - yeniden deneme mantığı ile
     const result = await retryAnkiConnectCall(async () => {
       return await invokeAnkiConnect('addNote', { note: noteData });
@@ -459,6 +490,10 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
       
       if (extractLastFrame && fs.existsSync(frontFramePath)) {
         fs.unlinkSync(frontFramePath);
+      }
+      
+      if (fs.existsSync(srtFilePath)) {
+        fs.unlinkSync(srtFilePath);
       }
     } catch (err) {
       console.warn('Geçici dosya temizlenemedi:', err);
@@ -561,6 +596,7 @@ function createVideoClip(videoPath, startTime, endTime, outputPath) {
       '-b:v', '0',
       '-c:a', 'libopus',
       '-vf', 'scale=-1:480',
+      '-sn', // Altyazıları dahil etme
       '-y', // Varolan dosyanın üzerine yaz
       outputPath
     ];
@@ -596,6 +632,57 @@ function createVideoClip(videoPath, startTime, endTime, outputPath) {
     ffmpegProcess.on('error', (err) => {
       console.error('FFmpeg başlatma hatası:', err);
       reject(err);
+    });
+  });
+}
+
+// Altyazı (subtitle) klip oluşturma fonksiyonu
+function extractSubtitleClip(videoPath, startTime, endTime, outputPath) {
+  return new Promise((resolve, reject) => {
+    // FFmpeg komutu
+    const ffmpegArgs = [
+      '-ss', startTime.toString(),
+      '-to', endTime.toString(),
+      '-i', videoPath,
+      '-map', '0:s:0', // İlk altyazı akışını seç
+      '-c:s', 'srt',   // SRT formatında çıktı al
+      '-y',           // Varolan dosyanın üzerine yaz
+      outputPath
+    ];
+    
+    console.log('FFmpeg SRT komutu:', 'ffmpeg', ffmpegArgs.join(' '));
+    
+    // FFmpeg işlemini başlat
+    const ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
+    
+    // Çıktıları topla
+    let stdoutData = '';
+    let stderrData = '';
+    
+    ffmpegProcess.stdout.on('data', (data) => {
+      stdoutData += data.toString();
+    });
+    
+    ffmpegProcess.stderr.on('data', (data) => {
+      stderrData += data.toString();
+    });
+    
+    // İşlem tamamlandığında
+    ffmpegProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log('Altyazı dosyası başarıyla oluşturuldu:', outputPath);
+        resolve(outputPath);
+      } else {
+        console.error('FFmpeg altyazı çıkarma hatası:', stderrData);
+        // Hata durumunda bile devam et, kritik işlem değil
+        resolve(null);
+      }
+    });
+    
+    ffmpegProcess.on('error', (err) => {
+      console.error('FFmpeg altyazı başlatma hatası:', err);
+      // Hata durumunda bile devam et, kritik işlem değil
+      resolve(null);
     });
   });
 }
