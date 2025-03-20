@@ -1344,8 +1344,8 @@ sendToAnkiBtn.addEventListener('click', () => {
   const videoField = `[sound:${clipId}.webm]`;
   
   // İlk ve son kareler için dosya adları
-  const firstFrameField = `_${clipId}_back.jpg`;
-  const lastFrameField = `_${clipId}_front.jpg`;
+  const firstFrameField = `_${clipId}_front.jpg`;
+  const lastFrameField = `_${clipId}_back.jpg`;
   const subtitleField = `_${clipId}.srt`;
   
   // Form alanlarını doldur

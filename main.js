@@ -362,14 +362,14 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
       // İlk kare
       if (extractFirstFrame) {
         frameExtractionPromises.push(
-          captureVideoFrame(videoPath, backFramePath, startTime, 'first')
+          captureVideoFrame(videoPath, frontFramePath, startTime, 'first')
         );
       }
       
       // Son kare
       if (extractLastFrame) {
         frameExtractionPromises.push(
-          captureVideoFrame(videoPath, frontFramePath, endTime, 'last')
+          captureVideoFrame(videoPath, backFramePath, endTime, 'last')
         );
       }
       
@@ -377,16 +377,16 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
       await Promise.all(frameExtractionPromises);
       
       // First Frame'i doğrudan Anki media klasörüne ekle
-      if (extractFirstFrame && fs.existsSync(backFramePath)) {
-        const firstFrameData = fs.readFileSync(backFramePath, { encoding: 'base64' });
+      if (extractFirstFrame && fs.existsSync(frontFramePath)) {
+        const firstFrameData = fs.readFileSync(frontFramePath, { encoding: 'base64' });
         
         // Yeniden deneme mantığı ile yükleme
         firstFrameUploaded = await retryAnkiConnectCall(async () => {
           await invokeAnkiConnect('storeMediaFile', {
-            filename: `_${clipId}_back.jpg`,
+            filename: `_${clipId}_front.jpg`,
             data: firstFrameData
           });
-          console.log(`İlk frame Anki media klasörüne eklendi: _${clipId}_back.jpg`);
+          console.log(`İlk frame Anki media klasörüne eklendi: _${clipId}_front.jpg`);
           return true; // Başarılı
         }, 3); // 3 kez deneme
         
@@ -399,16 +399,16 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Last Frame'i doğrudan Anki media klasörüne ekle
-      if (extractLastFrame && fs.existsSync(frontFramePath)) {
-        const lastFrameData = fs.readFileSync(frontFramePath, { encoding: 'base64' });
+      if (extractLastFrame && fs.existsSync(backFramePath)) {
+        const lastFrameData = fs.readFileSync(backFramePath, { encoding: 'base64' });
         
         // Yeniden deneme mantığı ile yükleme
         lastFrameUploaded = await retryAnkiConnectCall(async () => {
           await invokeAnkiConnect('storeMediaFile', {
-            filename: `_${clipId}_front.jpg`,
+            filename: `_${clipId}_back.jpg`,
             data: lastFrameData
           });
-          console.log(`Son frame Anki media klasörüne eklendi: _${clipId}_front.jpg`);
+          console.log(`Son frame Anki media klasörüne eklendi: _${clipId}_back.jpg`);
           return true; // Başarılı
         }, 3); // 3 kez deneme
         
@@ -484,12 +484,12 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
         fs.unlinkSync(clipFilePath);
       }
       
-      if (extractFirstFrame && fs.existsSync(backFramePath)) {
-        fs.unlinkSync(backFramePath);
+      if (extractFirstFrame && fs.existsSync(frontFramePath)) {
+        fs.unlinkSync(frontFramePath);
       }
       
-      if (extractLastFrame && fs.existsSync(frontFramePath)) {
-        fs.unlinkSync(frontFramePath);
+      if (extractLastFrame && fs.existsSync(backFramePath)) {
+        fs.unlinkSync(backFramePath);
       }
       
       if (fs.existsSync(srtFilePath)) {
