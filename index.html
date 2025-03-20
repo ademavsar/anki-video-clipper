@@ -2,9 +2,10 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; media-src 'self' file:; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8765;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; media-src 'self' file:; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com;">
   <title>Anki Video Clipper</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
   <div class="container">
@@ -233,29 +234,22 @@
               <label for="anki-subtitle">Subtitle:</label>
               <input type="text" id="anki-subtitle" readonly>
             </div>
+            
+            <div class="form-group subtitle-options">
+              <label>Subtitle Options:</label>
+              <div class="subtitle-buttons">
+                <button type="button" id="subtitle-off-btn" class="subtitle-option-btn active" title="No embedded subtitles">
+                  <i class="fas fa-ban"></i> No Subtitles
+                </button>
+                <button type="button" id="subtitle-on-btn" class="subtitle-option-btn" title="Embed subtitles">
+                  <i class="fas fa-closed-captioning"></i> Embed Subtitles
+                </button>
+              </div>
+            </div>
           </div>
           
           <!-- Content Sekmesi -->
           <div class="tab-content" id="content-tab">
-            <div class="form-group">
-              <label for="anki-word">Word:</label>
-              <input type="text" id="anki-word" placeholder="Enter word..." tabindex="1">
-            </div>
-            
-            <div class="form-group">
-              <label for="anki-en">En:</label>
-              <input type="text" id="anki-en" placeholder="Enter English definition..." tabindex="2">
-            </div>
-            
-            <div class="form-group">
-              <label for="anki-tr">Tr:</label>
-              <input type="text" id="anki-tr" placeholder="Enter Turkish translation..." tabindex="3">
-            </div>
-            
-            <div class="form-group">
-              <label for="anki-extra">Extra:</label>
-              <input type="text" id="anki-extra" placeholder="Enter additional information..." tabindex="4">
-            </div>
           </div>
           
           <!-- Settings Sekmesi -->

@@ -184,7 +184,8 @@ let appState = {
   },
   lastUsedDeck: null,
   convertedVideoPath: null,
-  embeddedSubtitles: [] // Dahili altyazıları saklamak için
+  embeddedSubtitles: [], // Dahili altyazıları saklamak için
+  embedSubtitles: false // Altyazı gömme durumu
 };
 
 // Sayfa yüklendiğinde son kullanılan dosyaları ve ayarları yükle
@@ -627,8 +628,8 @@ function updateActiveSubtitle() {
   );
   
   // Aktif altyazı değiştiyse güncelle
-  if (activeIndex !== appState.activeSubtitleIndex) {
-    appState.activeSubtitleIndex = activeIndex;
+  if (activeIndex !== appState.currentSubtitleIndex) {
+    appState.currentSubtitleIndex = activeIndex;
     
     // Tüm altyazılardan active sınıfını kaldır
     const subtitleItems = document.querySelectorAll('.subtitle-item');
@@ -1385,7 +1386,8 @@ ankiSendBtn.addEventListener('click', async () => {
         clipId: clipId,
         noteData: noteData,
         extractFirstFrame: true,
-        extractLastFrame: true
+        extractLastFrame: true,
+        embedSubtitles: appState.embedSubtitles
       });
       
       // Başarı mesajı göster
@@ -2169,6 +2171,11 @@ function resetAnkiCardModal() {
   ankiSendBtn.disabled = false;
   ankiCancelBtn.disabled = false;
   
+  // Altyazı butonlarını varsayılan duruma getir
+  subtitleOffBtn.classList.add('active');
+  subtitleOnBtn.classList.remove('active');
+  appState.embedSubtitles = false;
+  
   // İlk sekmeyi aktif yap
   document.querySelectorAll('.tab-button').forEach(btn => {
     btn.classList.remove('active');
@@ -2440,3 +2447,20 @@ function formatTimeForFileName(seconds) {
   // MM:SS formatında döndür (0424 gibi)
   return `${minutes.toString().padStart(2, '0')}${secs.toString().padStart(2, '0')}`;
 }
+
+// Altyazı seçenekleri butonları
+const subtitleOffBtn = document.getElementById('subtitle-off-btn');
+const subtitleOnBtn = document.getElementById('subtitle-on-btn');
+
+// Altyazı seçenekleri butonları event listeners
+subtitleOffBtn.addEventListener('click', () => {
+  subtitleOffBtn.classList.add('active');
+  subtitleOnBtn.classList.remove('active');
+  appState.embedSubtitles = false;
+});
+
+subtitleOnBtn.addEventListener('click', () => {
+  subtitleOnBtn.classList.add('active');
+  subtitleOffBtn.classList.remove('active');
+  appState.embedSubtitles = true;
+});

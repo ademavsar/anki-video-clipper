@@ -1313,4 +1313,44 @@ body {
   color: #aaa;
   text-align: center;
   font-style: italic;
+}
+
+/* Altyazı seçeneği butonları */
+.subtitle-options {
+  margin-top: 15px;
+}
+
+.subtitle-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.subtitle-option-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border: 2px solid #333;
+  background-color: #2c2c2c;
+  color: #aaa;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.subtitle-option-btn i {
+  margin-right: 6px;
+}
+
+.subtitle-option-btn:hover {
+  background-color: #3a3a3a;
+  border-color: #555;
+}
+
+.subtitle-option-btn.active {
+  background-color: #0078d7;
+  color: white;
+  border-color: #0063b1;
 } 
