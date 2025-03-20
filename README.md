@@ -27,50 +27,6 @@ An Electron-based application for creating Anki cards while watching films.
 ![Anki Export](screenshots/anki_export.png)
 *Anki export dialog for creating flashcards*
 
-## Installation
-
-### Pre-built Package
-
-1. Download the appropriate version for your operating system from the [Releases](https://github.com/kullanici/anki-video-clipper/releases) page
-2. Run the downloaded installer
-3. Launch the application after installation is complete
-
-### Development Setup
-
-1. Clone the repository:
-```
-git clone https://github.com/kullanici/anki-video-clipper.git
-cd anki-video-clipper
-```
-
-2. Install dependencies:
-```
-npm install
-```
-
-3. Start the application:
-```
-npm start
-```
-
-## Usage
-
-1. Click the "Select Video & Subtitles" button to select a video file
-2. Select a subtitle file (optional)
-3. Select one of the subtitles listed in the right panel
-4. Make necessary adjustments in the clip editor:
-   - Set start/end points
-   - Add previous/next scenes (for context)
-   - Edit subtitle text
-5. Click the "Preview" button to preview the clip
-6. Click the "Create Clip" button to create the clip
-7. Click the "Send to Anki" button to open the tabbed interface
-   - Media tab: Displays video and frame information
-   - Content tab: Edit word, translation and other content fields
-   - Settings tab: Select deck, note type, and tags
-
-For detailed usage instructions, see the [YARDIM.md](YARDIM.md) file.
-
 ## Requirements
 
 - [FFmpeg](https://ffmpeg.org/download.html) (must be installed on the system)
@@ -98,15 +54,6 @@ To properly connect the application with Anki, make sure your AnkiConnect plugin
 
 You can configure these settings by going to Anki → Tools → Add-ons → AnkiConnect → Config.
 
-## Technical Details
-
-The application uses the following technologies:
-
-- [Electron](https://www.electronjs.org/) - Desktop application framework
-- [Video.js](https://videojs.com/) - Video player
-- [Fluent-FFmpeg](https://github.com/fluent-ffmpeg/node-fluent-ffmpeg) - Node.js wrapper for FFmpeg
-- [subtitle](https://github.com/gsantiago/subtitle.js) - Subtitle processing
-
 ## Roadmap
 
 - [x] Automatic subtitle tracking
@@ -132,14 +79,6 @@ The application uses the following technologies:
 - [ ] Third-party player integration (VLC, MPC-HC, etc.)
 - [ ] Keyboard shortcuts
 - [ ] Settings page
-
-## Known Issues
-
-- [ ] Some subtitle formatting lost during import
-- [ ] Timeline zoom needs improvement on high-resolution screens
-- [ ] Video player controls overlap with subtitles in some cases
-- [ ] Previous subtitle file remains visible when opening a new video file without subtitle
-- [ ] Occasional connection reset errors with Anki-Connect API (automatically retried)
 
 ## License
 
