@@ -54,9 +54,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Dosyaların varlığını kontrol et
   checkFilesExist: (args) => ipcRenderer.invoke('check-files-exist', args),
   
-  // Klip oluşturma
-  createClip: (args) => ipcRenderer.invoke('create-clip', args),
-  
   // Anki entegrasyonu
   sendToAnki: (args) => ipcRenderer.invoke('send-to-anki', args),
   

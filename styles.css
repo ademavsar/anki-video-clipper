@@ -435,15 +435,7 @@ body {
 }
 
 #preview-clip-btn:hover {
-  background-color: #4a4a4a;
-}
-
-#create-clip-btn {
-  background-color: #0078d7;
-}
-
-#create-clip-btn:hover {
-  background-color: #0063b1;
+  background-color: #2980b9;
 }
 
 #send-to-anki-btn {

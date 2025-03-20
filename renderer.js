@@ -16,7 +16,6 @@ const startTimeDownBtn = document.getElementById('start-time-down');
 const endTimeUpBtn = document.getElementById('end-time-up');
 const endTimeDownBtn = document.getElementById('end-time-down');
 const previewClipBtn = document.getElementById('preview-clip-btn');
-const createClipBtn = document.getElementById('create-clip-btn');
 const sendToAnkiBtn = document.getElementById('send-to-anki-btn');
 const timelineTrack = document.getElementById('timeline-track');
 const timelineCursor = document.getElementById('timeline-cursor');
@@ -1269,54 +1268,7 @@ previewClipBtn.addEventListener('click', () => {
   videoPlayer.addEventListener('timeupdate', stopPlayback);
 });
 
-// Klip oluştur butonu
-createClipBtn.addEventListener('click', async () => {
-  if (!appState.videoPath || !appState.subtitlePath || appState.currentSubtitleIndex === -1) {
-    alert('Lütfen önce bir video, altyazı ve bir sahne seçin!');
-    return;
-  }
-  
-  // Seçilen altyazı ve indeks bilgilerini al
-  const currentIndex = appState.currentSubtitleIndex;
-  const startIndex = appState.selectedStartIndex || currentIndex;
-  const endIndex = appState.selectedEndIndex || currentIndex;
-  const currentSubtitle = appState.subtitles[currentIndex];
-  
-  // Zaman bilgilerini al
-  const startTime = parseTimeToSeconds(startTimeInput.value);
-  const endTime = parseTimeToSeconds(endTimeInput.value);
-  
-  try {
-    showLoadingIndicator('Klip oluşturuluyor...');
-    
-    // API çağrısı
-    const result = await window.electronAPI.createClip({
-      videoPath: appState.videoPath,
-      subtitlePath: appState.subtitlePath,
-      startTime,
-      endTime,
-      text: currentSubtitle.text,
-      includePrev: appState.selectedClip ? appState.selectedClip.includePrev : false,
-      includeNext: appState.selectedClip ? appState.selectedClip.includeNext : false,
-      startIndex: startIndex,
-      endIndex: endIndex
-    });
-    
-    hideLoadingIndicator();
-    
-    if (result.success) {
-      showNotification(`Klip başarıyla oluşturuldu: ${getFileName(result.clipPath)}`);
-    } else {
-      alert(`Klip oluşturma hatası: ${result.message}`);
-    }
-  } catch (error) {
-    hideLoadingIndicator();
-    console.error('Klip oluşturma hatası:', error);
-    alert(`Klip oluşturma hatası: ${error.message}`);
-  }
-});
-
-// Anki'ye gönder
+// Send to Anki butonuna tıklandığında (eski kodun yerine)
 sendToAnkiBtn.addEventListener('click', () => {
   if (!appState.videoPath || !appState.subtitlePath || appState.currentSubtitleIndex === -1) {
     alert('Lütfen önce bir video, altyazı ve bir sahne seçin!');
@@ -1378,7 +1330,7 @@ sendToAnkiBtn.addEventListener('click', () => {
   }, 100);
 });
 
-// Send to Anki butonuna tıklandığında (eski kodun yerine)
+// Anki'ye gönder
 ankiSendBtn.addEventListener('click', async () => {
   try {
     // Son kullanılan bilgileri sakla
@@ -1510,7 +1462,7 @@ function parseTimeToSeconds(timeStr) {
   const ms = parts.length > 1 ? Number(parts[1]) / 1000 : 0;
   
   return hours * 3600 + minutes * 60 + seconds + ms;
-} 
+}
 
 // Butonların durumlarını güncelle
 function updateButtonStates() {
