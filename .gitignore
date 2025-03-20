@@ -35,6 +35,7 @@ tmp/
 
 # Backup directory and files
 backup/
+video_note_type/
 
 # Cursor editor related
 .cursor 
