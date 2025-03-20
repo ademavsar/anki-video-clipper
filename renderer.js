@@ -457,7 +457,14 @@ function parseSRT(content) {
         const endTime = endHours * 3600 + endMinutes * 60 + endSeconds + endMilliseconds / 1000;
         
         // Metin kısmını birleştir
-        const text = lines.slice(2).join('\n');
+        let text = lines.slice(2).join('\n');
+        
+        // HTML taglarını temizle (<i>, </i> vb.)
+        text = text.replace(/<[^>]*>/g, '');
+        
+        // ASS formatı stil kodlarını temizle ({\an8} vb.)
+        text = text.replace(/{\\[^}]*}/g, '');
+        text = text.replace(/{[^}]*}/g, '');
         
         subtitles.push({
           id: subtitles.length + 1,
@@ -579,7 +586,14 @@ function parseVTT(content) {
           const endTime = endMinutes * 60 + endSeconds + endMilliseconds / 1000;
           
           // Metin kısmını birleştir
-          const text = lines.slice(timeLineIndex + 1).join('\n');
+          let text = lines.slice(timeLineIndex + 1).join('\n');
+          
+          // HTML taglarını temizle (<i>, </i> vb.)
+          text = text.replace(/<[^>]*>/g, '');
+          
+          // ASS formatı stil kodlarını temizle ({\an8} vb.)
+          text = text.replace(/{\\[^}]*}/g, '');
+          text = text.replace(/{[^}]*}/g, '');
           
           subtitles.push({
             id: subtitles.length + 1,
