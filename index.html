@@ -200,57 +200,90 @@
         <span class="close-modal" id="close-anki-modal">&times;</span>
       </div>
       <div class="modal-body">
+        <!-- Sekme Butonları -->
+        <div class="tab-buttons">
+          <button class="tab-button active" data-tab="media-tab">Media</button>
+          <button class="tab-button" data-tab="content-tab">Content</button>
+          <button class="tab-button" data-tab="settings-tab">Settings</button>
+        </div>
+        
         <form class="anki-form">
-          <div class="form-group">
-            <label for="anki-id">Id:</label>
-            <input type="text" id="anki-id" readonly>
+          <!-- Media Sekmesi -->
+          <div class="tab-content active" id="media-tab">
+            <div class="form-group">
+              <label for="anki-id">Id:</label>
+              <input type="text" id="anki-id" readonly>
+            </div>
+            
+            <div class="form-group">
+              <label for="anki-video">Video:</label>
+              <input type="text" id="anki-video" readonly>
+            </div>
+            
+            <div class="form-group">
+              <label for="anki-first-frame">First Frame:</label>
+              <input type="text" id="anki-first-frame" readonly>
+            </div>
+            
+            <div class="form-group">
+              <label for="anki-last-frame">Last Frame:</label>
+              <input type="text" id="anki-last-frame" readonly>
+            </div>
           </div>
           
-          <div class="form-group">
-            <label for="anki-video">Video:</label>
-            <input type="text" id="anki-video" readonly>
+          <!-- Content Sekmesi -->
+          <div class="tab-content" id="content-tab">
+            <div class="form-group">
+              <label for="anki-word">Word:</label>
+              <input type="text" id="anki-word" placeholder="Enter word..." tabindex="1">
+            </div>
+            
+            <div class="form-group">
+              <label for="anki-en">En:</label>
+              <input type="text" id="anki-en" placeholder="Enter English definition..." tabindex="2">
+            </div>
+            
+            <div class="form-group">
+              <label for="anki-tr">Tr:</label>
+              <input type="text" id="anki-tr" placeholder="Enter Turkish translation..." tabindex="3">
+            </div>
+            
+            <div class="form-group">
+              <label for="anki-extra">Extra:</label>
+              <input type="text" id="anki-extra" placeholder="Enter additional information..." tabindex="4">
+            </div>
           </div>
           
-          <div class="form-group">
-            <label for="anki-word">Word:</label>
-            <input type="text" id="anki-word" placeholder="Enter word..." tabindex="1">
-          </div>
-          
-          <div class="form-group">
-            <label for="anki-en">En:</label>
-            <input type="text" id="anki-en" placeholder="Enter English definition..." tabindex="2">
-          </div>
-          
-          <div class="form-group">
-            <label for="anki-tr">Tr:</label>
-            <input type="text" id="anki-tr" placeholder="Enter Turkish translation..." tabindex="3">
-          </div>
-          
-          <div class="form-group">
-            <label for="anki-extra">Extra:</label>
-            <input type="text" id="anki-extra" placeholder="Enter additional information..." tabindex="4">
-          </div>
-          
-          <div class="form-group">
-            <label for="anki-tags">Tags:</label>
-            <input type="text" id="anki-tags" placeholder="Enter tags (comma separated)..." tabindex="5">
-          </div>
-          
-          <div class="form-group">
-            <label for="anki-deck">Deck:</label>
-            <select id="anki-deck" tabindex="6">
-              <option value="">Loading decks...</option>
-            </select>
+          <!-- Settings Sekmesi -->
+          <div class="tab-content" id="settings-tab">
+            <div class="form-group">
+              <label for="anki-model">Not Tipi:</label>
+              <select id="anki-model" tabindex="5">
+                <option value="">Loading models...</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="anki-deck">Deck:</label>
+              <select id="anki-deck" tabindex="6">
+                <option value="">Loading decks...</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="anki-tags">Tags:</label>
+              <input type="text" id="anki-tags" placeholder="Enter tags (comma separated)..." tabindex="7">
+            </div>
           </div>
         </form>
       </div>
       <div class="modal-footer">
-        <div class="progress-container" id="anki-progress-container" style="display: none;">
-          <div class="progress-bar" id="anki-progress-bar"></div>
-          <div class="progress-text" id="anki-progress-text">İşleniyor...</div>
+        <div class="status-indicator" id="anki-status">
+          <span id="anki-status-icon"></span>
+          <span id="anki-status-text"></span>
         </div>
         <button id="anki-cancel-btn" type="button" tabindex="8">Cancel</button>
-        <button id="anki-send-btn" type="button" tabindex="7">Send to Anki</button>
+        <button id="anki-send-btn" type="button" tabindex="6">Send to Anki</button>
       </div>
     </div>
   </div>

@@ -62,6 +62,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Anki-Connect API entegrasyonu
   getAnkiDecks: () => ipcRenderer.invoke('get-anki-decks'),
+  getAnkiModels: () => ipcRenderer.invoke('get-anki-models'),
+  getModelFields: (modelName) => ipcRenderer.invoke('get-model-fields', modelName),
   addAnkiNote: (noteData) => ipcRenderer.invoke('add-anki-note', noteData),
-  createClipForAnki: (args) => ipcRenderer.invoke('create-clip-for-anki', args)
+  createClipForAnki: (args) => ipcRenderer.invoke('create-clip-for-anki', args),
+  reloadAnkiData: () => ipcRenderer.invoke('reload-anki-data')
 }); 

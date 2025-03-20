@@ -43,15 +43,18 @@ const ankiCancelBtn = document.getElementById('anki-cancel-btn');
 const ankiSendBtn = document.getElementById('anki-send-btn');
 const ankiIdInput = document.getElementById('anki-id');
 const ankiVideoInput = document.getElementById('anki-video');
+const ankiFirstFrameInput = document.getElementById('anki-first-frame');
+const ankiLastFrameInput = document.getElementById('anki-last-frame');
 const ankiWordInput = document.getElementById('anki-word');
 const ankiEnInput = document.getElementById('anki-en');
 const ankiTrInput = document.getElementById('anki-tr');
 const ankiExtraInput = document.getElementById('anki-extra');
 const ankiTagsInput = document.getElementById('anki-tags');
 const ankiDeckSelect = document.getElementById('anki-deck');
-const ankiProgressContainer = document.getElementById('anki-progress-container');
-const ankiProgressBar = document.getElementById('anki-progress-bar');
-const ankiProgressText = document.getElementById('anki-progress-text');
+const ankiModelSelect = document.getElementById('anki-model');
+const ankiStatus = document.getElementById('anki-status');
+const ankiStatusIcon = document.getElementById('anki-status-icon');
+const ankiStatusText = document.getElementById('anki-status-text');
 
 // Ayar kontrolleri
 const fontSizeInput = document.getElementById('subtitle-font-size');
@@ -156,6 +159,9 @@ let appState = {
   timelineSegments: [], // Zaman çizelgesi segmentleri
   zoomLevel: 1, // Zoom seviyesi (1x varsayılan)
   lastUsedTags: '', // Son kullanılan etiketleri saklamak için
+  // İndeks takibi için özellikler
+  selectedStartIndex: null, // Başlangıç indeksi
+  selectedEndIndex: null, // Bitiş indeksi
   selectedClip: {
     startTime: 0,
     endTime: 0,
@@ -939,15 +945,30 @@ function renderTimeline() {
 
 // Klip oluşturmak için altyazı seç
 function selectSubtitleForClip(index) {
-  const subtitle = appState.subtitles[index];
-  appState.currentSubtitleIndex = index;
+  if (index < 0 || index >= appState.subtitles.length) return;
   
-  // Form alanlarını doldur
+  console.log('selectSubtitleForClip - Başlangıç:');
+  console.log('Seçilen indeks:', index);
+  
+  // Seçilen altyazı indeksini ve süreleri güncelle
+  appState.currentSubtitleIndex = index;
+  const subtitle = appState.subtitles[index];
+  
+  // Başlangıç ve bitiş indekslerini seçilen altyazı için ayarla
+  appState.selectedStartIndex = index;
+  appState.selectedEndIndex = index;
+  
+  console.log('Ayarlanan değerler:');
+  console.log('appState.currentSubtitleIndex:', appState.currentSubtitleIndex);
+  console.log('appState.selectedStartIndex:', appState.selectedStartIndex);
+  console.log('appState.selectedEndIndex:', appState.selectedEndIndex);
+  
+  // Başlangıç ve bitiş zamanlarını ayarla
   startTimeInput.value = formatTimeWithMs(subtitle.startTime);
   endTimeInput.value = formatTimeWithMs(subtitle.endTime);
   
-  // Seçili altyazı metnini appState'e kaydet
-  appState.selectedClip.text = subtitle.text;
+  // Seçili altyazı metnini göster
+  subtitlePreview.textContent = subtitle.text;
   
   // Videoyu ilgili konuma getir
   videoPlayer.currentTime = subtitle.startTime;
@@ -963,203 +984,250 @@ function selectSubtitleForClip(index) {
     selectedItem.classList.add('selected');
   }
   
+  // Klip özelliklerini ayarla
+  appState.selectedClip = {
+    text: subtitle.text,
+    startTime: subtitle.startTime,
+    endTime: subtitle.endTime,
+    includePrev: false,
+    includeNext: false
+  };
+  
   // Zaman çizelgesini güncelle
   renderTimeline();
   
   // Butonların durumlarını güncelle
   updateButtonStates();
+  
+  console.log('selectSubtitleForClip - Tamamlandı');
 }
 
 // Önceki sahne ekleme butonu
 prevSceneAddBtn.addEventListener('click', () => {
-  // Mevcut başlangıç zamanını al
-  const currentStartTime = parseTimeToSeconds(startTimeInput.value);
+  // Mevcut altyazı indeksi 
   const currentIndex = appState.currentSubtitleIndex;
   
-  // Önceki sahneyi bul (mevcut başlangıç zamanından önceki en yakın sahne)
-  let prevIndex = -1;
-  
-  // Tüm altyazıları kontrol et
-  for (let i = 0; i < appState.subtitles.length; i++) {
-    const subtitle = appState.subtitles[i];
-    
-    // Eğer bu altyazı mevcut başlangıç zamanından önce başlıyorsa
-    if (subtitle.endTime <= currentStartTime) {
-      // Ve şu ana kadar bulunan en yakın önceki sahneden daha yakınsa
-      if (prevIndex === -1 || subtitle.endTime > appState.subtitles[prevIndex].endTime) {
-        prevIndex = i;
-      }
-    }
+  // Altyazı dizisi kontrolü
+  if (currentIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
+    return;
   }
   
-  // Eğer önceki sahne bulunduysa, başlangıç zamanını güncelle
-  if (prevIndex !== -1) {
-    const prevSubtitle = appState.subtitles[prevIndex];
+  // Kullanıcının seçtiği indeksi takip ediyoruz (start)
+  let startIndex = appState.selectedStartIndex || currentIndex;
+  
+  // Eğer önceki bir sahne varsa
+  if (startIndex > 0) {
+    // Bir önceki sahneyi ekleyerek başlangıç indeksimizi güncelliyoruz
+    startIndex -= 1;
     
-    // Başlangıç süresini güncelle
-    startTimeInput.value = formatTimeWithMs(prevSubtitle.startTime);
+    // Yeni başlangıç zamanını güncelle
+    startTimeInput.value = formatTimeWithMs(appState.subtitles[startIndex].startTime);
+    
+    // Altyazı indeksini kaydet
+    appState.selectedStartIndex = startIndex;
     
     // Videoyu yeni başlangıç noktasına getir
-    videoPlayer.currentTime = prevSubtitle.startTime;
+    videoPlayer.currentTime = appState.subtitles[startIndex].startTime;
     
-    // Zaman çizelgesini güncelle
+    // Timeline güncellemesi
     renderTimeline();
     
-    // Butonların durumlarını güncelle
-    updateButtonStates();
-  }
-});
-
-// Sonraki sahne ekleme butonu
-nextSceneAddBtn.addEventListener('click', () => {
-  // Mevcut bitiş zamanını al
-  const currentEndTime = parseTimeToSeconds(endTimeInput.value);
-  const currentIndex = appState.currentSubtitleIndex;
-  
-  // Sonraki sahneyi bul (mevcut bitiş zamanından sonraki en yakın sahne)
-  let nextIndex = -1;
-  
-  // Tüm altyazıları kontrol et
-  for (let i = 0; i < appState.subtitles.length; i++) {
-    const subtitle = appState.subtitles[i];
-    
-    // Eğer bu altyazı mevcut bitiş zamanından sonra bitiyorsa
-    if (subtitle.startTime >= currentEndTime) {
-      // Ve şu ana kadar bulunan en yakın sonraki sahneden daha yakınsa
-      if (nextIndex === -1 || subtitle.startTime < appState.subtitles[nextIndex].startTime) {
-        nextIndex = i;
-      }
-    }
-  }
-  
-  // Eğer sonraki sahne bulunduysa, bitiş zamanını güncelle
-  if (nextIndex !== -1) {
-    const nextSubtitle = appState.subtitles[nextIndex];
-    
-    // Bitiş süresini güncelle
-    endTimeInput.value = formatTimeWithMs(nextSubtitle.endTime);
-    
-    // Zaman çizelgesini güncelle
-    renderTimeline();
-    
-    // Butonların durumlarını güncelle
+    // Butonların durumunu güncelle
     updateButtonStates();
   }
 });
 
 // Önceki sahne çıkarma butonu
 prevSceneRemoveBtn.addEventListener('click', () => {
-  // Mevcut başlangıç zamanını al
-  const currentStartTime = parseTimeToSeconds(startTimeInput.value);
+  // Mevcut altyazı indeksi
   const currentIndex = appState.currentSubtitleIndex;
-  const currentSubtitle = appState.subtitles[currentIndex];
   
-  // Eğer başlangıç zamanı merkez sahnenin başlangıç zamanından küçükse
-  if (currentStartTime < currentSubtitle.startTime) {
-    // Mevcut başlangıç zamanından sonraki en yakın sahneyi bul
-    let nextStartIndex = -1;
+  // Altyazı dizisi kontrolü
+  if (currentIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
+    return;
+  }
+  
+  // Kullanıcının seçtiği indeksleri takip ediyoruz
+  let startIndex = appState.selectedStartIndex || currentIndex;
+  
+  // Konsola değerleri yazdır (debug için)
+  console.log('Remove Previous Scene - Değişken durumları:');
+  console.log('currentIndex:', currentIndex);
+  console.log('startIndex:', startIndex);
+  console.log('appState.selectedStartIndex:', appState.selectedStartIndex);
+  
+  // Eğer başlangıç indeksimiz merkez referans sahnemizden küçükse
+  // (yani önceki sahneler eklenmişse)
+  if (startIndex < currentIndex) {
+    // En son eklenen önceki sahneyi çıkar
+    startIndex += 1;
     
-    // Tüm altyazıları kontrol et
-    for (let i = 0; i < appState.subtitles.length; i++) {
-      const subtitle = appState.subtitles[i];
-      
-      // Eğer bu altyazı mevcut başlangıç zamanı ile merkez sahne arasında başlıyorsa
-      if (subtitle.startTime > currentStartTime && subtitle.startTime <= currentSubtitle.startTime) {
-        // Ve şu ana kadar bulunan en yakın sahneden daha yakınsa
-        if (nextStartIndex === -1 || subtitle.startTime < appState.subtitles[nextStartIndex].startTime) {
-          nextStartIndex = i;
-        }
-      }
-    }
+    // Yeni başlangıç zamanını güncelle
+    startTimeInput.value = formatTimeWithMs(appState.subtitles[startIndex].startTime);
     
-    // Eğer bir sonraki sahne bulunduysa, başlangıç zamanını güncelle
-    if (nextStartIndex !== -1) {
-      startTimeInput.value = formatTimeWithMs(appState.subtitles[nextStartIndex].startTime);
-    } else {
-      // Bulunamadıysa, merkez sahnenin başlangıç zamanına ayarla
-      startTimeInput.value = formatTimeWithMs(currentSubtitle.startTime);
-    }
+    // Altyazı indeksini kaydet
+    appState.selectedStartIndex = startIndex;
     
     // Videoyu yeni başlangıç noktasına getir
-    videoPlayer.currentTime = parseTimeToSeconds(startTimeInput.value);
+    videoPlayer.currentTime = appState.subtitles[startIndex].startTime;
     
-    // Zaman çizelgesini güncelle
+    // Timeline güncellemesi
     renderTimeline();
     
-    // Butonların durumlarını güncelle
+    // Butonların durumunu güncelle
+    updateButtonStates();
+    
+    // İşlemden sonra konsola değerleri yazdır (debug için)
+    console.log('Remove Previous Scene - İşlem sonrası:');
+    console.log('startIndex (güncellendi):', startIndex);
+    console.log('appState.selectedStartIndex (güncellendi):', appState.selectedStartIndex);
+  } else {
+    console.log('Önceki sahne yok, işlem yapılmadı');
+  }
+});
+
+// Sonraki sahne ekleme butonu
+nextSceneAddBtn.addEventListener('click', () => {
+  // Mevcut altyazı indeksi
+  const currentIndex = appState.currentSubtitleIndex;
+  
+  // Altyazı dizisi kontrolü
+  if (currentIndex === -1 || !appState.subtitles || appState.subtitles.length === 0 || 
+      currentIndex >= appState.subtitles.length - 1) {
+    return;
+  }
+  
+  // Kullanıcının seçtiği indeksi takip ediyoruz (end)
+  let endIndex = appState.selectedEndIndex || currentIndex;
+  
+  // Eğer sonraki bir sahne varsa
+  if (endIndex < appState.subtitles.length - 1) {
+    // Bir sonraki sahneyi ekleyerek bitiş indeksimizi güncelliyoruz
+    endIndex += 1;
+    
+    // Yeni bitiş zamanını güncelle
+    endTimeInput.value = formatTimeWithMs(appState.subtitles[endIndex].endTime);
+    
+    // Altyazı indeksini kaydet
+    appState.selectedEndIndex = endIndex;
+    
+    // Timeline güncellemesi
+    renderTimeline();
+    
+    // Butonların durumunu güncelle
     updateButtonStates();
   }
 });
 
 // Sonraki sahne çıkarma butonu
 nextSceneRemoveBtn.addEventListener('click', () => {
-  // Mevcut bitiş zamanını al
-  const currentEndTime = parseTimeToSeconds(endTimeInput.value);
+  // Mevcut altyazı indeksi
   const currentIndex = appState.currentSubtitleIndex;
-  const currentSubtitle = appState.subtitles[currentIndex];
   
-  // Eğer bitiş zamanı merkez sahnenin bitiş zamanından büyükse
-  if (currentEndTime > currentSubtitle.endTime) {
-    // Mevcut bitiş zamanından önceki en yakın sahneyi bul
-    let prevEndIndex = -1;
+  // Altyazı dizisi kontrolü
+  if (currentIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
+    return;
+  }
+  
+  // Kullanıcının seçtiği indeksleri takip ediyoruz
+  let startIndex = appState.selectedStartIndex || currentIndex;
+  let endIndex = appState.selectedEndIndex || currentIndex;
+  
+  // Eğer bitiş indeksimiz merkez referans sahnemizden büyükse
+  // (yani sonraki sahneler eklenmişse)
+  if (endIndex > currentIndex) {
+    // En son eklenen sonraki sahneyi çıkar
+    endIndex -= 1;
     
-    // Tüm altyazıları kontrol et
-    for (let i = 0; i < appState.subtitles.length; i++) {
-      const subtitle = appState.subtitles[i];
-      
-      // Eğer bu altyazı merkez sahne ile mevcut bitiş zamanı arasında bitiyorsa
-      if (subtitle.endTime < currentEndTime && subtitle.endTime >= currentSubtitle.endTime) {
-        // Ve şu ana kadar bulunan en yakın sahneden daha yakınsa
-        if (prevEndIndex === -1 || subtitle.endTime > appState.subtitles[prevEndIndex].endTime) {
-          prevEndIndex = i;
-        }
-      }
-    }
+    // Yeni bitiş zamanını güncelle
+    endTimeInput.value = formatTimeWithMs(appState.subtitles[endIndex].endTime);
     
-    // Eğer bir önceki sahne bulunduysa, bitiş zamanını güncelle
-    if (prevEndIndex !== -1) {
-      endTimeInput.value = formatTimeWithMs(appState.subtitles[prevEndIndex].endTime);
-    } else {
-      // Bulunamadıysa, merkez sahnenin bitiş zamanına ayarla
-      endTimeInput.value = formatTimeWithMs(currentSubtitle.endTime);
-    }
+    // Altyazı indeksini kaydet
+    appState.selectedEndIndex = endIndex;
     
-    // Zaman çizelgesini güncelle
+    // Timeline güncellemesi
     renderTimeline();
     
-    // Butonların durumlarını güncelle
+    // Butonların durumunu güncelle
     updateButtonStates();
   }
 });
 
-// Zaman ayarlama butonları işlevleri
-// Zaman ayarlama miktarı (saniye)
-const TIME_ADJUST_STEP = 0.1; // 100ms
-
-// Başlangıç zamanı için ayarlama butonları
-startTimeUpBtn.addEventListener('click', () => adjustTime(startTimeInput, TIME_ADJUST_STEP));
-startTimeDownBtn.addEventListener('click', () => adjustTime(startTimeInput, -TIME_ADJUST_STEP));
-
-// Bitiş zamanı için ayarlama butonları
-endTimeUpBtn.addEventListener('click', () => adjustTime(endTimeInput, TIME_ADJUST_STEP));
-endTimeDownBtn.addEventListener('click', () => adjustTime(endTimeInput, -TIME_ADJUST_STEP));
-
-// Zamanı ayarlama fonksiyonu
-function adjustTime(inputElement, seconds) {
-  const currentTime = parseTimeToSeconds(inputElement.value);
-  const newTime = Math.max(0, currentTime + seconds);
-  inputElement.value = formatTimeWithMs(newTime);
+// Butonların durumunu güncelleme
+function updateButtonStates() {
+  const currentIndex = appState.currentSubtitleIndex;
   
-  // Eğer başlangıç zamanını değiştiriyorsak ve videoyu başlangıç noktasına getir
-  if (inputElement === startTimeInput) {
-    videoPlayer.currentTime = newTime;
+  console.log('updateButtonStates - Başlangıç:');
+  console.log('currentIndex:', currentIndex);
+  console.log('appState.selectedStartIndex:', appState.selectedStartIndex);
+  console.log('appState.selectedEndIndex:', appState.selectedEndIndex);
+  
+  if (currentIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
+    prevSceneAddBtn.disabled = true;
+    prevSceneRemoveBtn.disabled = true;
+    nextSceneAddBtn.disabled = true;
+    nextSceneRemoveBtn.disabled = true;
+    prevSceneAddBtn.classList.add('disabled');
+    prevSceneRemoveBtn.classList.add('disabled');
+    nextSceneAddBtn.classList.add('disabled');
+    nextSceneRemoveBtn.classList.add('disabled');
+    console.log('İşlem yapılmadı: Geçerli altyazı yok');
+    return;
   }
   
-  // Zaman çizelgesini güncelle
-  renderTimeline();
+  // Kullanıcının seçtiği indeksleri takip ediyoruz
+  const startIndex = appState.selectedStartIndex !== undefined ? appState.selectedStartIndex : currentIndex;
+  const endIndex = appState.selectedEndIndex !== undefined ? appState.selectedEndIndex : currentIndex;
   
-  // Butonların durumlarını güncelle
-  updateButtonStates();
+  console.log('İşlenecek değerler:');
+  console.log('startIndex:', startIndex);
+  console.log('endIndex:', endIndex);
+  
+  // Önceki sahne ekleme butonu
+  if (startIndex > 0) {
+    prevSceneAddBtn.disabled = false;
+    prevSceneAddBtn.classList.remove('disabled');
+    console.log('prevSceneAddBtn: Aktif');
+  } else {
+    prevSceneAddBtn.disabled = true;
+    prevSceneAddBtn.classList.add('disabled');
+    console.log('prevSceneAddBtn: Devre dışı');
+  }
+  
+  // Önceki sahne çıkarma butonu - önceki sahneler eklendiyse aktif
+  if (startIndex < currentIndex) {
+    prevSceneRemoveBtn.disabled = false;
+    prevSceneRemoveBtn.classList.remove('disabled');
+    console.log('prevSceneRemoveBtn: Aktif');
+  } else {
+    prevSceneRemoveBtn.disabled = true;
+    prevSceneRemoveBtn.classList.add('disabled');
+    console.log('prevSceneRemoveBtn: Devre dışı');
+  }
+  
+  // Sonraki sahne ekleme butonu
+  if (endIndex < appState.subtitles.length - 1) {
+    nextSceneAddBtn.disabled = false;
+    nextSceneAddBtn.classList.remove('disabled');
+    console.log('nextSceneAddBtn: Aktif');
+  } else {
+    nextSceneAddBtn.disabled = true;
+    nextSceneAddBtn.classList.add('disabled');
+    console.log('nextSceneAddBtn: Devre dışı');
+  }
+  
+  // Sonraki sahne çıkarma butonu - sonraki sahneler eklendiyse aktif
+  if (endIndex > currentIndex) {
+    nextSceneRemoveBtn.disabled = false;
+    nextSceneRemoveBtn.classList.remove('disabled');
+    console.log('nextSceneRemoveBtn: Aktif');
+  } else {
+    nextSceneRemoveBtn.disabled = true;
+    nextSceneRemoveBtn.classList.add('disabled');
+    console.log('nextSceneRemoveBtn: Devre dışı');
+  }
+  
+  console.log('updateButtonStates - Tamamlandı');
 }
 
 // Klip önizleme
@@ -1186,40 +1254,39 @@ previewClipBtn.addEventListener('click', () => {
   videoPlayer.addEventListener('timeupdate', stopPlayback);
 });
 
-// Klip oluştur
+// Klip oluştur butonu
 createClipBtn.addEventListener('click', async () => {
-  if (!appState.videoPath || !appState.currentSubtitleIndex === -1) {
-    alert('Lütfen önce bir video ve altyazı seçin, sonra bir sahne seçin!');
+  if (!appState.videoPath || !appState.subtitlePath || appState.currentSubtitleIndex === -1) {
+    alert('Lütfen önce bir video, altyazı ve bir sahne seçin!');
     return;
   }
   
-  // Seçilen altyazı ve zaman bilgilerini al
+  // Seçilen altyazı ve indeks bilgilerini al
+  const currentIndex = appState.currentSubtitleIndex;
+  const startIndex = appState.selectedStartIndex || currentIndex;
+  const endIndex = appState.selectedEndIndex || currentIndex;
+  const currentSubtitle = appState.subtitles[currentIndex];
+  
+  // Zaman bilgilerini al
   const startTime = parseTimeToSeconds(startTimeInput.value);
   const endTime = parseTimeToSeconds(endTimeInput.value);
   
-  // Seçilen altyazı metnini al
-  const selectedSubtitle = appState.subtitles[appState.currentSubtitleIndex];
-  const text = selectedSubtitle.text;
-  
-  // Kullanılacak video dosyası yolunu belirle
-  const videoPath = appState.convertedVideoPath || appState.videoPath;
-  
   try {
-    // Yükleme göstergesi göster
-    showLoadingIndicator("Klip oluşturuluyor...");
+    showLoadingIndicator('Klip oluşturuluyor...');
     
-    // Klip oluştur
+    // API çağrısı
     const result = await window.electronAPI.createClip({
-      videoPath: videoPath,
+      videoPath: appState.videoPath,
       subtitlePath: appState.subtitlePath,
-      startTime: startTime,
-      endTime: endTime,
-      text: text,
-      includePrev: appState.selectedClip.includePrev,
-      includeNext: appState.selectedClip.includeNext
+      startTime,
+      endTime,
+      text: currentSubtitle.text,
+      includePrev: appState.selectedClip ? appState.selectedClip.includePrev : false,
+      includeNext: appState.selectedClip ? appState.selectedClip.includeNext : false,
+      startIndex: startIndex,
+      endIndex: endIndex
     });
     
-    // Yükleme göstergesini gizle
     hideLoadingIndicator();
     
     if (result.success) {
@@ -1241,110 +1308,66 @@ sendToAnkiBtn.addEventListener('click', () => {
     return;
   }
   
-  // Seçilen altyazı ve zaman bilgilerini al
-  const currentIndex = appState.currentSubtitleIndex;
-  const currentSubtitle = appState.subtitles[currentIndex];
-  const startTime = parseTimeToSeconds(startTimeInput.value);
-  const endTime = parseTimeToSeconds(endTimeInput.value);
+  // Modal'ı açmadan önce sıfırla
+  resetAnkiCardModal();
   
-  // Benzersiz ID oluştur
+  // Seçilen altyazı indeks bilgilerini al
+  const currentIndex = appState.currentSubtitleIndex;
+  const startIndex = appState.selectedStartIndex || currentIndex;
+  const endIndex = appState.selectedEndIndex || currentIndex;
+  
+  // Video dosya adını al
   const videoName = getFileName(appState.videoPath).replace(/\.[^/.]+$/, ""); // Uzantıyı kaldır
-  const formattedStartTime = formatTimeForFileName(startTime);
-  const formattedEndTime = formatTimeForFileName(endTime);
-  const clipId = `${formattedStartTime}-${formattedEndTime}_${videoName}`;
+  
+  // Altyazı segment numarasını oluştur
+  const subtitleSegment = `${startIndex.toString().padStart(4, '0')}-${endIndex.toString().padStart(4, '0')}`;
+  
+  // Dosya ID'sini oluştur
+  const clipId = `${subtitleSegment}_${videoName}`;
   
   // Video alanı için [sound:xxx.webm] formatında değer oluştur
   const videoField = `[sound:${clipId}.webm]`;
   
+  // İlk ve son kareler için dosya adları
+  const firstFrameField = `_${clipId}_back.jpg`;
+  const lastFrameField = `_${clipId}_front.jpg`;
+  
   // Form alanlarını doldur
   ankiIdInput.value = clipId;
   ankiVideoInput.value = videoField;
-  ankiWordInput.value = '';
-  ankiEnInput.value = '';
-  ankiTrInput.value = '';
-  ankiExtraInput.value = '';
+  ankiFirstFrameInput.value = firstFrameField;
+  ankiLastFrameInput.value = lastFrameField;
+  
+  // Eski word ve diğer alanlar artık dinamik olarak yüklenecek
   
   // Son kullanılan etiketleri kullan
   ankiTagsInput.value = appState.lastUsedTags;
   
-  // Anki destelerini yükle
+  // Anki destelerini ve not tiplerini yükle
   fetchAnkiDecks();
+  fetchAnkiModels();
   
   // Modal penceresini göster
   ankiCardModal.style.display = 'block';
   
   // Form alanlarına odaklanma sorununu çözmek için
-  // Kısa bir gecikme ile Word alanına odaklan
+  // Kısa bir gecikme ile Content tabına geç
   setTimeout(() => {
-    ankiWordInput.focus();
+    document.querySelector('.tab-button[data-tab="content-tab"]').click();
+    // Şimdi dinamik alanlar oluştuğundan spesifik bir input seçmek yerine
+    // Content tab'daki ilk input'a odaklanıyoruz
+    const firstInput = document.querySelector('#content-tab .form-group input');
+    if (firstInput) firstInput.focus();
   }, 100);
 });
 
-// Dosya adı için zaman formatı
-function formatTimeForFileName(seconds) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-  const ms = Math.floor((seconds % 1) * 1000);
-  
-  return `${hours.toString().padStart(2, '0')}h${minutes.toString().padStart(2, '0')}m${secs.toString().padStart(2, '0')}s${ms.toString().padStart(3, '0')}ms`;
-}
-
-// Anki destelerini çek ve dropdown'a ekle
-async function fetchAnkiDecks() {
-  try {
-    // Dropdown'ı temizle ve yükleniyor mesajını göster
-    ankiDeckSelect.innerHTML = '<option value="">Loading decks...</option>';
-    
-    // Anki Connect API'den desteleri çek (IPC üzerinden)
-    const decks = await window.electronAPI.getAnkiDecks();
-    
-    // Dropdown'ı doldur
-    ankiDeckSelect.innerHTML = '';
-    decks.sort().forEach(deck => {
-      const option = document.createElement('option');
-      option.value = deck;
-      option.textContent = deck;
-      ankiDeckSelect.appendChild(option);
-    });
-    
-    // Eğer daha önce seçilmiş bir deste varsa, onu seç
-    if (appState.lastUsedDeck && decks.includes(appState.lastUsedDeck)) {
-      ankiDeckSelect.value = appState.lastUsedDeck;
-    } else if (decks.length > 0) {
-      // İlk desteyi seç
-      ankiDeckSelect.value = decks[0];
-      appState.lastUsedDeck = decks[0];
-    }
-  } catch (error) {
-    console.error('Anki destelerini çekerken hata oluştu:', error);
-    ankiDeckSelect.innerHTML = '<option value="">Anki bağlantısı kurulamadı</option>';
-  }
-}
-
-// Modal penceresini kapat (X butonuna tıklandığında)
-closeAnkiModalBtn.addEventListener('click', () => {
-  ankiCardModal.style.display = 'none';
-});
-
-// Modal penceresini kapat (Cancel butonuna tıklandığında)
-ankiCancelBtn.addEventListener('click', () => {
-  ankiCardModal.style.display = 'none';
-});
-
-// Modal penceresini kapat (modal dışına tıklandığında)
-window.addEventListener('click', (event) => {
-  if (event.target === ankiCardModal) {
-    ankiCardModal.style.display = 'none';
-  }
-});
-
-// Send to Anki butonuna tıklandığında
+// Send to Anki butonuna tıklandığında (eski kodun yerine)
 ankiSendBtn.addEventListener('click', async () => {
   try {
-    // Son kullanılan etiketleri sakla
+    // Son kullanılan bilgileri sakla
     appState.lastUsedTags = ankiTagsInput.value;
     appState.lastUsedDeck = ankiDeckSelect.value;
+    appState.lastUsedModel = ankiModelSelect.value;
     
     // Zaman bilgilerini al
     const startTime = parseTimeToSeconds(startTimeInput.value);
@@ -1354,18 +1377,26 @@ ankiSendBtn.addEventListener('click', async () => {
     // Kullanılacak video dosyası yolunu belirle
     const videoPath = appState.convertedVideoPath || appState.videoPath;
     
+    // Dinamik alanları toplayalım
+    const fields = {};
+    
+    // Temel alanları ekle
+    fields.Id = ankiIdInput.value;
+    fields.Video = ankiVideoInput.value; // Bu alan daha sonra video ile değiştirilecek
+    
+    // Dinamik alanları topla
+    const contentInputs = document.querySelectorAll('#content-tab .form-group input');
+    contentInputs.forEach(input => {
+      if (input.dataset.field) {
+        fields[input.dataset.field] = input.value;
+      }
+    });
+    
     // Anki'ye gönderilecek not verilerini hazırla
     const noteData = {
       deckName: ankiDeckSelect.value,
-      modelName: "Video", // Anki'deki not tipi adı
-      fields: {
-        Id: ankiIdInput.value,
-        Video: ankiVideoInput.value, // Bu alan daha sonra video ile değiştirilecek
-        Word: ankiWordInput.value,
-        En: ankiEnInput.value,
-        Tr: ankiTrInput.value,
-        Extra: ankiExtraInput.value
-      },
+      modelName: ankiModelSelect.value,
+      fields: fields,
       tags: ankiTagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag)
     };
     
@@ -1373,19 +1404,8 @@ ankiSendBtn.addEventListener('click', async () => {
     ankiSendBtn.disabled = true;
     ankiCancelBtn.disabled = true;
     
-    // İlerleme çubuğunu göster
-    ankiProgressContainer.style.display = 'block';
-    ankiProgressBar.style.width = '0%';
-    ankiProgressText.textContent = 'Hazırlanıyor...';
-    
-    // İlerleme animasyonu başlat
-    let progress = 0;
-    const progressInterval = setInterval(() => {
-      progress += 5;
-      if (progress > 90) progress = 90; // 90%'da durdur, tamamlandığında 100% olacak
-      ankiProgressBar.style.width = `${progress}%`;
-      ankiProgressText.textContent = `İşleniyor... ${progress}%`;
-    }, 300);
+    // Durum göstergesini göster
+    showAnkiStatus('loading', 'Kart hazırlanıyor...');
     
     try {
       // Klip oluştur ve Anki'ye gönder
@@ -1394,30 +1414,24 @@ ankiSendBtn.addEventListener('click', async () => {
         startTime: startTime,
         endTime: endTime,
         clipId: clipId,
-        noteData: noteData
+        noteData: noteData,
+        extractFirstFrame: true,
+        extractLastFrame: true
       });
       
-      // İlerleme animasyonunu durdur
-      clearInterval(progressInterval);
-      
-      // İlerleme çubuğunu tamamla
-      ankiProgressBar.style.width = '100%';
-      ankiProgressText.textContent = 'Tamamlandı!';
-      
       // Başarı mesajı göster
+      showAnkiStatus('success', 'Kart başarıyla eklendi!');
+      
+      // Modal penceresini kapat
       setTimeout(() => {
         ankiCardModal.style.display = 'none';
+        resetAnkiCardModal();
         showNotification('Kart başarıyla Anki\'ye eklendi!');
       }, 1000);
       
     } catch (error) {
-      // İlerleme animasyonunu durdur
-      clearInterval(progressInterval);
-      
-      // Hata durumunda ilerleme çubuğunu güncelle
-      ankiProgressContainer.className = 'progress-container progress-error';
-      ankiProgressBar.style.width = '100%';
-      ankiProgressText.textContent = `Hata: ${error.message}`;
+      // Hata durumunu göster
+      showAnkiStatus('error', `Hata: ${error.message}`);
       
       // Butonları tekrar aktif et
       ankiSendBtn.disabled = false;
@@ -1492,48 +1506,64 @@ function updateButtonStates() {
   const currentSubtitle = appState.subtitles[currentIndex];
   
   // Önceki sahne çıkarma butonu
+  // Eğer başlangıç zamanı merkez sahnenin başlangıç zamanından küçükse,
+  // önceki sahneler eklenmiş demektir ve buton aktif olmalı
   if (currentStartTime < currentSubtitle.startTime) {
+    prevSceneRemoveBtn.disabled = false;
     prevSceneRemoveBtn.classList.remove('disabled');
   } else {
+    // Önceki sahne yoksa buton devre dışı
+    prevSceneRemoveBtn.disabled = true;
     prevSceneRemoveBtn.classList.add('disabled');
   }
   
   // Sonraki sahne çıkarma butonu
+  // Eğer bitiş zamanı merkez sahnenin bitiş zamanından büyükse,
+  // sonraki sahneler eklenmiş demektir ve buton aktif olmalı
   if (currentEndTime > currentSubtitle.endTime) {
+    nextSceneRemoveBtn.disabled = false;
     nextSceneRemoveBtn.classList.remove('disabled');
   } else {
+    // Sonraki sahne yoksa buton devre dışı
+    nextSceneRemoveBtn.disabled = true;
     nextSceneRemoveBtn.classList.add('disabled');
   }
   
   // Önceki sahne ekleme butonu
+  // Daha önceki bir sahne varsa aktif olmalı
   let hasPrevScene = false;
   for (let i = 0; i < appState.subtitles.length; i++) {
     const subtitle = appState.subtitles[i];
-    if (subtitle.endTime <= currentStartTime) {
+    if (subtitle.endTime < currentStartTime) {
       hasPrevScene = true;
       break;
     }
   }
   
   if (hasPrevScene) {
+    prevSceneAddBtn.disabled = false;
     prevSceneAddBtn.classList.remove('disabled');
   } else {
+    prevSceneAddBtn.disabled = true;
     prevSceneAddBtn.classList.add('disabled');
   }
   
   // Sonraki sahne ekleme butonu
+  // Daha sonraki bir sahne varsa aktif olmalı
   let hasNextScene = false;
   for (let i = 0; i < appState.subtitles.length; i++) {
     const subtitle = appState.subtitles[i];
-    if (subtitle.startTime >= currentEndTime) {
+    if (subtitle.startTime > currentEndTime) {
       hasNextScene = true;
       break;
     }
   }
   
   if (hasNextScene) {
+    nextSceneAddBtn.disabled = false;
     nextSceneAddBtn.classList.remove('disabled');
   } else {
+    nextSceneAddBtn.disabled = true;
     nextSceneAddBtn.classList.add('disabled');
   }
 }
@@ -2091,3 +2121,353 @@ verticalPositionInput.addEventListener('input', () => {
   verticalPositionValue.textContent = `${position}%`;
   updateSubtitlePreview();
 });
+
+// Zaman ayarlama butonları işlevleri
+// Zaman ayarlama miktarı (saniye)
+const TIME_ADJUST_STEP = 0.1; // 100ms
+
+// Başlangıç zamanı için ayarlama butonları
+startTimeUpBtn.addEventListener('click', () => adjustTime(startTimeInput, TIME_ADJUST_STEP));
+startTimeDownBtn.addEventListener('click', () => adjustTime(startTimeInput, -TIME_ADJUST_STEP));
+
+// Bitiş zamanı için ayarlama butonları
+endTimeUpBtn.addEventListener('click', () => adjustTime(endTimeInput, TIME_ADJUST_STEP));
+endTimeDownBtn.addEventListener('click', () => adjustTime(endTimeInput, -TIME_ADJUST_STEP));
+
+// Zamanı ayarlama fonksiyonu
+function adjustTime(inputElement, seconds) {
+  const currentTime = parseTimeToSeconds(inputElement.value);
+  const newTime = Math.max(0, currentTime + seconds);
+  inputElement.value = formatTimeWithMs(newTime);
+  
+  // Eğer başlangıç zamanını değiştiriyorsak ve videoyu başlangıç noktasına getir
+  if (inputElement === startTimeInput) {
+    videoPlayer.currentTime = newTime;
+  }
+  
+  // Zaman çizelgesini güncelle
+  renderTimeline();
+  
+  // Butonların durumlarını güncelle
+  updateButtonStates();
+}
+
+// Anki Card Modal: Sekme değiştirme işlevselliği
+document.querySelectorAll('.tab-button').forEach(button => {
+  button.addEventListener('click', () => {
+    // Aktif sekme butonunu güncelle
+    document.querySelectorAll('.tab-button').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    button.classList.add('active');
+    
+    // Aktif sekme içeriğini güncelle
+    const tabId = button.getAttribute('data-tab');
+    document.querySelectorAll('.tab-content').forEach(content => {
+      content.classList.remove('active');
+    });
+    document.getElementById(tabId).classList.add('active');
+  });
+});
+
+// Anki Card Modal: Durum göstergesi fonksiyonları
+function showAnkiStatus(type, message) {
+  ankiStatus.classList.add('visible');
+  ankiStatusIcon.className = '';
+  ankiStatusText.textContent = message;
+  
+  if (type === 'loading') {
+    ankiStatusIcon.classList.add('loading');
+  } else if (type === 'success') {
+    ankiStatusIcon.classList.add('success');
+  } else if (type === 'error') {
+    ankiStatusIcon.classList.add('error');
+  }
+}
+
+function hideAnkiStatus() {
+  ankiStatus.classList.remove('visible');
+  ankiStatusIcon.className = '';
+  ankiStatusText.textContent = '';
+}
+
+// Anki Card Modal'ı sıfırlama fonksiyonu
+function resetAnkiCardModal() {
+  // Durum göstergesini sıfırla
+  hideAnkiStatus();
+  
+  // Butonları etkinleştir
+  ankiSendBtn.disabled = false;
+  ankiCancelBtn.disabled = false;
+  
+  // İlk sekmeyi aktif yap
+  document.querySelectorAll('.tab-button').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  document.querySelector('.tab-button[data-tab="media-tab"]').classList.add('active');
+  
+  document.querySelectorAll('.tab-content').forEach(content => {
+    content.classList.remove('active');
+  });
+  document.getElementById('media-tab').classList.add('active');
+}
+
+// Anki modal penceresini kapatma (eski kodun yerine)
+closeAnkiModalBtn.addEventListener('click', () => {
+  ankiCardModal.style.display = 'none';
+  resetAnkiCardModal();
+});
+
+// Anki modal penceresini iptal etme (eski kodun yerine)
+ankiCancelBtn.addEventListener('click', () => {
+  ankiCardModal.style.display = 'none';
+  resetAnkiCardModal();
+});
+
+// Anki not tiplerini çek ve dropdown'a ekle
+async function fetchAnkiModels() {
+  try {
+    // Dropdown'ı temizle ve yükleniyor mesajını göster
+    ankiModelSelect.innerHTML = '<option value="">Loading models...</option>';
+    
+    // Anki Connect API'den not tiplerini çek (IPC üzerinden)
+    const models = await window.electronAPI.getAnkiModels();
+    
+    // Dropdown'ı doldur
+    ankiModelSelect.innerHTML = '';
+    models.sort().forEach(model => {
+      const option = document.createElement('option');
+      option.value = model;
+      option.textContent = model;
+      ankiModelSelect.appendChild(option);
+    });
+    
+    // Eğer daha önce seçilmiş bir not tipi varsa, onu seç
+    if (appState.lastUsedModel && models.includes(appState.lastUsedModel)) {
+      ankiModelSelect.value = appState.lastUsedModel;
+    } else if (models.length > 0) {
+      // İlk not tipini seç
+      ankiModelSelect.value = models[0];
+      appState.lastUsedModel = models[0];
+    }
+    
+    // Değişiklik olayını tetikle (change event listener kullanılacak)
+    ankiModelSelect.dispatchEvent(new Event('change'));
+  } catch (error) {
+    console.error('Anki not tiplerini çekerken hata oluştu:', error);
+    ankiModelSelect.innerHTML = '<option value="">Anki bağlantısı kurulamadı</option>';
+    
+    // Hata durumunda kullanıcıya Anki'yi yeniden başlatma önerisi gösterme
+    showAnkiReloadSuggestion();
+  }
+}
+
+// Anki yeniden başlatma önerisi göster
+function showAnkiReloadSuggestion() {
+  const contentTab = document.getElementById('content-tab');
+  
+  // Eğer zaten bir öneri mesajı varsa tekrar ekleme
+  if (contentTab.querySelector('.anki-reload-suggestion')) return;
+  
+  // Öneri mesajı oluştur
+  const suggestionDiv = document.createElement('div');
+  suggestionDiv.className = 'anki-reload-suggestion';
+  suggestionDiv.innerHTML = `
+    <strong>Not Tipi alanları yüklenirken sorun oluştu!</strong>
+    <p>Bu sorun şu nedenlerden kaynaklanabilir:</p>
+    <ul>
+      <li>Anki çalışmıyor olabilir.</li>
+      <li>Anki-Connect eklentisi aktif değil.</li>
+      <li>Not tipinde yeni yaptığınız değişiklikler Anki'de henüz yenilenmemiş olabilir.</li>
+    </ul>
+    <p>Önerilen çözümler:</p>
+    <ol>
+      <li>Anki'nin açık olduğundan emin olun.</li>
+      <li>Anki'yi yeniden başlatın.</li>
+      <li>Anki'de Araçlar > Not Türlerini Yönet menüsünden not tipinin alanlarını kontrol edin.</li>
+    </ol>
+    <button id="reload-anki-data-btn" class="reload-anki-btn">Anki Verilerini Yenile</button>
+  `;
+  
+  // Mesajı content tab'a ekle
+  contentTab.appendChild(suggestionDiv);
+  
+  // Yenileme butonuna tıklandığında
+  const reloadAnkiDataBtn = document.getElementById('reload-anki-data-btn');
+  reloadAnkiDataBtn.addEventListener('click', async () => {
+    try {
+      reloadAnkiDataBtn.disabled = true;
+      reloadAnkiDataBtn.textContent = 'Yenileniyor...';
+      
+      // Anki verilerini yenile
+      await window.electronAPI.reloadAnkiData();
+      
+      // Not tiplerini ve alanlarını tekrar yükle
+      await fetchAnkiModels();
+      
+      // Başarı mesajı göster
+      showNotification('Anki verileri başarıyla yenilendi!');
+    } catch (error) {
+      console.error('Anki verilerini yenileme hatası:', error);
+      alert('Anki verilerini yenilerken bir hata oluştu. Lütfen Anki\'nin açık olduğundan emin olun.');
+    } finally {
+      reloadAnkiDataBtn.disabled = false;
+      reloadAnkiDataBtn.textContent = 'Anki Verilerini Yenile';
+    }
+  });
+}
+
+// Not tipi değiştiğinde alanları güncelle
+ankiModelSelect.addEventListener('change', () => {
+  const selectedModel = ankiModelSelect.value;
+  appState.lastUsedModel = selectedModel;
+  
+  // Seçilen model değiştiğinde önceki hata/öneri mesajlarını temizle
+  const contentTab = document.getElementById('content-tab');
+  contentTab.innerHTML = '';
+  
+  // Yükleniyor mesajı göster
+  const loadingMessage = document.createElement('div');
+  loadingMessage.className = 'loading-message';
+  loadingMessage.textContent = 'Alanlar yükleniyor...';
+  contentTab.appendChild(loadingMessage);
+  
+  // Alanları güncelle
+  updateModelFields(selectedModel);
+});
+
+// Not tipinin alanlarını yükle
+async function updateModelFields(modelName) {
+  if (!modelName) return;
+  
+  try {
+    console.log(`${modelName} not tipinin alanları getiriliyor...`);
+    
+    // Not tipinin alanlarını çek
+    const fields = await window.electronAPI.getModelFields(modelName);
+    
+    console.log(`${modelName} not tipi için dönen alanlar:`, fields);
+    
+    // Alanlar dizisi boşsa veya undefined ise hata fırlat
+    if (!fields || fields.length === 0) {
+      throw new Error(`${modelName} not tipi için hiç alan bulunamadı!`);
+    }
+    
+    // Şu an content tabında manuel olarak düzenlenebilen alanları izliyoruz
+    const contentTab = document.getElementById('content-tab');
+    contentTab.innerHTML = '';
+    
+    // Temel alanları her zaman media sekmesinde tut
+    const mediaFields = ['Id', 'Video', 'FirstFrame', 'LastFrame'];
+    
+    // Her alan için form elemanı oluştur (Temel alanlar hariç)
+    for (const field of fields) {
+      // Anki API'sinden gelen alan adını kontrol et
+      if (!field) {
+        console.warn('Boş alan adı atlandı.');
+        continue;
+      }
+      
+      // Temel alanları atla, onlar zaten media sekmesinde
+      if (mediaFields.includes(field)) {
+        console.log(`Media alanı atlandı: ${field}`);
+        continue;
+      }
+      
+      console.log(`Content alanı oluşturuluyor: ${field}`);
+      
+      // Alan için form-group oluştur
+      const formGroup = document.createElement('div');
+      formGroup.className = 'form-group';
+      
+      // Label oluştur
+      const label = document.createElement('label');
+      label.setAttribute('for', `anki-${field.toLowerCase()}`);
+      label.textContent = `${field}:`;
+      
+      // Input oluştur
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.id = `anki-${field.toLowerCase()}`;
+      input.placeholder = `Enter ${field.toLowerCase()}...`;
+      input.dataset.field = field; // Gerçek alan adını dataset'te sakla
+      
+      // Input'u form grubuna ekle
+      formGroup.appendChild(label);
+      formGroup.appendChild(input);
+      
+      // Form grubunu tab-content'e ekle
+      contentTab.appendChild(formGroup);
+    }
+    
+    // Herhangi bir alan oluşturulup oluşturulmadığını kontrol et
+    const formGroups = contentTab.querySelectorAll('.form-group');
+    if (formGroups.length === 0) {
+      // Hiç alan oluşturulmadıysa bir mesaj göster
+      const noFieldsMessage = document.createElement('div');
+      noFieldsMessage.className = 'no-fields-message';
+      noFieldsMessage.textContent = `${modelName} not tipinde gösterilecek içerik alanı bulunamadı.`;
+      contentTab.appendChild(noFieldsMessage);
+    }
+    
+  } catch (error) {
+    console.error(`Not tipi alanları çekilirken hata oluştu (${modelName}):`, error);
+    
+    // Hata mesajını kullanıcıya göster
+    const contentTab = document.getElementById('content-tab');
+    contentTab.innerHTML = '';
+    
+    const errorMessage = document.createElement('div');
+    errorMessage.className = 'error-message';
+    errorMessage.textContent = `Not tipi alanları yüklenirken bir hata oluştu: ${error.message}`;
+    contentTab.appendChild(errorMessage);
+  }
+}
+
+// Anki destelerini çek ve dropdown'a ekle
+async function fetchAnkiDecks() {
+  try {
+    // Dropdown'ı temizle ve yükleniyor mesajını göster
+    ankiDeckSelect.innerHTML = '<option value="">Loading decks...</option>';
+    
+    // Anki Connect API'den desteleri çek (IPC üzerinden)
+    const decks = await window.electronAPI.getAnkiDecks();
+    
+    // Dropdown'ı doldur
+    ankiDeckSelect.innerHTML = '';
+    decks.sort().forEach(deck => {
+      const option = document.createElement('option');
+      option.value = deck;
+      option.textContent = deck;
+      ankiDeckSelect.appendChild(option);
+    });
+    
+    // Eğer daha önce seçilmiş bir deste varsa, onu seç
+    if (appState.lastUsedDeck && decks.includes(appState.lastUsedDeck)) {
+      ankiDeckSelect.value = appState.lastUsedDeck;
+    } else if (decks.length > 0) {
+      // İlk desteyi seç
+      ankiDeckSelect.value = decks[0];
+      appState.lastUsedDeck = decks[0];
+    }
+  } catch (error) {
+    console.error('Anki destelerini çekerken hata oluştu:', error);
+    ankiDeckSelect.innerHTML = '<option value="">Anki bağlantısı kurulamadı</option>';
+  }
+}
+
+// Not tipi değiştiğinde alanları güncelle
+ankiModelSelect.addEventListener('change', () => {
+  const selectedModel = ankiModelSelect.value;
+  appState.lastUsedModel = selectedModel;
+  updateModelFields(selectedModel);
+});
+
+// Dosya adı için zaman formatı
+function formatTimeForFileName(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  // MM:SS formatında döndür (0424 gibi)
+  return `${minutes.toString().padStart(2, '0')}${secs.toString().padStart(2, '0')}`;
+}

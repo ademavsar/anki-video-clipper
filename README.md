@@ -11,9 +11,13 @@ An Electron-based application for creating Anki cards while watching films.
   - Adjust duration
   - Edit subtitle text
 - Anki integration (via AnkiConnect API)
+  - Send video clips directly to Anki
+  - First/Last frame extraction to Anki media folder
+  - Support for multiple note types and fields
 - FFmpeg integration for video clip extraction
 - Support for various subtitle formats (SRT, ASS, VTT)
 - Smart embedded subtitle language detection with visual highlighting for special formats
+- Modern tabbed UI for Anki card creation
 
 ## Screenshots
 
@@ -60,7 +64,10 @@ npm start
    - Edit subtitle text
 5. Click the "Preview" button to preview the clip
 6. Click the "Create Clip" button to create the clip
-7. Click the "Send to Anki" button to send the card to Anki
+7. Click the "Send to Anki" button to open the tabbed interface
+   - Media tab: Displays video and frame information
+   - Content tab: Edit word, translation and other content fields
+   - Settings tab: Select deck, note type, and tags
 
 For detailed usage instructions, see the [YARDIM.md](YARDIM.md) file.
 
@@ -111,13 +118,15 @@ The application uses the following technologies:
 - [x] UI/UX improvements
   - [x] Removed automatic DevTools opening on startup
   - [x] Added proper application menu with File, Edit, View and Help options
+  - [x] Tabbed interface for Anki card creation with Media, Content, and Settings tabs
 - [x] Enhanced subtitle settings and customization
   - [x] Font family selection (Arial, Verdana, Roboto, Open Sans, Noto Sans, Courier New, Times New Roman)
   - [x] Text formatting options (bold, italic)
   - [x] Advanced vertical positioning with custom percentage values
   - [x] Improved UI with dark theme compatible controls
+- [x] First/Last frame capture feature for Anki cards
+- [x] Dynamic note type field support
 - [ ] Better compatibility with various video codecs
-- [ ] First/Last frame capture feature for Anki cards
 - [ ] Drag and drop support for video and subtitle files
 - [ ] Advanced subtitle search and filtering
 - [ ] Third-party player integration (VLC, MPC-HC, etc.)
@@ -130,6 +139,7 @@ The application uses the following technologies:
 - [ ] Timeline zoom needs improvement on high-resolution screens
 - [ ] Video player controls overlap with subtitles in some cases
 - [ ] Previous subtitle file remains visible when opening a new video file without subtitle
+- [ ] Occasional connection reset errors with Anki-Connect API (automatically retried)
 
 ## License
 

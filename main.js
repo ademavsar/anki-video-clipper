@@ -4,6 +4,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const fetch = require('node-fetch');
 const os = require('os');
+const ffmpeg = require('fluent-ffmpeg');
 
 // Dönüştürülmüş dosyaları önbelleklemek için global nesne
 const audioConversionCache = {
@@ -241,6 +242,71 @@ ipcMain.handle('get-anki-decks', async () => {
   }
 });
 
+// Anki not tiplerini getir
+ipcMain.handle('get-anki-models', async () => {
+  try {
+    return await invokeAnkiConnect('modelNames');
+  } catch (error) {
+    console.error('Anki not tipleri alınamadı:', error);
+    return [];
+  }
+});
+
+// Not tipinin alanlarını getir
+ipcMain.handle('get-model-fields', async (event, modelName) => {
+  try {
+    console.log(`Anki'den "${modelName}" not tipinin alanları isteniyor...`);
+    
+    // İlk yöntem: modelFieldNames kullanarak doğrudan alanları alma
+    let fields = await invokeAnkiConnect('modelFieldNames', { modelName });
+    
+    console.log(`"${modelName}" not tipi için dönen alanlar (modelFieldNames):`, fields);
+    
+    // Eğer ilk yöntem başarısız olduysa veya boş bir dizi döndüyse, ikinci yöntemi dene
+    if (!fields || fields.length === 0) {
+      console.log(`modelFieldNames boş döndü, modelSchemaNow kullanarak deneniyor...`);
+      
+      // İkinci yöntem: Model şemasını al
+      const modelSchema = await invokeAnkiConnect('modelSchemaNow', { modelName });
+      
+      if (modelSchema && typeof modelSchema === 'object') {
+        // Schema alan adlarını içeriyorsa
+        if (Array.isArray(modelSchema.flds)) {
+          fields = modelSchema.flds.map(field => field.name);
+          console.log(`"${modelName}" not tipi için schema'dan çıkarılan alanlar:`, fields);
+        } else {
+          console.warn(`"${modelName}" not tipi için schema beklenen formatta değil:`, modelSchema);
+        }
+      } else {
+        console.warn(`"${modelName}" not tipi için schema alınamadı:`, modelSchema);
+        
+        // Üçüncü yöntem: Farklı format dene
+        try {
+          const modelTemplates = await invokeAnkiConnect('getModelTemplates', { modelName });
+          if (modelTemplates && typeof modelTemplates === 'object') {
+            // Şablon adlarından alanları çıkarmayı dene
+            fields = Object.keys(modelTemplates);
+            console.log(`"${modelName}" not tipi için şablonlardan çıkarılan alanlar:`, fields);
+          }
+        } catch (innerError) {
+          console.warn('Üçüncü yöntem de başarısız oldu:', innerError);
+        }
+      }
+    }
+    
+    // Yine de alanlar bulunamadıysa boş bir dizi döndür
+    if (!fields || fields.length === 0) {
+      console.warn(`"${modelName}" not tipi için hiç alan bulunamadı, boş dizi döndürülüyor.`);
+      return [];
+    }
+    
+    return fields;
+  } catch (error) {
+    console.error(`"${modelName}" not tipi alanları alınamadı:`, error);
+    throw error;
+  }
+});
+
 // Anki'ye not gönder
 ipcMain.handle('add-anki-note', async (event, noteData) => {
   try {
@@ -254,31 +320,146 @@ ipcMain.handle('add-anki-note', async (event, noteData) => {
 // Video klip oluştur ve Anki'ye gönder
 ipcMain.handle('create-clip-for-anki', async (event, args) => {
   try {
-    const { videoPath, startTime, endTime, clipId, noteData } = args;
+    const { 
+      videoPath, 
+      startTime, 
+      endTime, 
+      clipId, 
+      noteData,
+      extractFirstFrame = false,
+      extractLastFrame = false
+    } = args;
     
-    // Geçici dosya yolu oluştur
-    const tempDir = os.tmpdir();
+    // Geçici dizini tanımla
+    const tempDir = app.getPath('temp');
+    
+    // Klip dosya yolunu belirle
     const clipFilePath = path.join(tempDir, `${clipId}.webm`);
     
-    // FFmpeg ile video klibini oluştur
+    // Kare dosyaları - yeni dosya isimlendirme yapısına uygun şekilde
+    const frontFramePath = path.join(tempDir, `_${clipId}_front.jpg`);
+    const backFramePath = path.join(tempDir, `_${clipId}_back.jpg`);
+    
+    // Klip oluştur
     await createVideoClip(videoPath, startTime, endTime, clipFilePath);
+    
+    // Frame çıkarma ve yükleme başarısını takip etmek için değişkenler
+    let firstFrameUploaded = !extractFirstFrame; // Eğer çıkarılmayacaksa başarılı kabul et
+    let lastFrameUploaded = !extractLastFrame;   // Eğer çıkarılmayacaksa başarılı kabul et
+    
+    // First frame ve last frame çıkarma işlemleri
+    if (extractFirstFrame || extractLastFrame) {
+      // Frame'leri çıkarmak için Promise dizisi
+      const frameExtractionPromises = [];
+      
+      // İlk kare
+      if (extractFirstFrame) {
+        frameExtractionPromises.push(
+          captureVideoFrame(videoPath, backFramePath, startTime, 'first')
+        );
+      }
+      
+      // Son kare
+      if (extractLastFrame) {
+        frameExtractionPromises.push(
+          captureVideoFrame(videoPath, frontFramePath, endTime, 'last')
+        );
+      }
+      
+      // Tüm frame çıkarma işlemlerini bekle
+      await Promise.all(frameExtractionPromises);
+      
+      // First Frame'i doğrudan Anki media klasörüne ekle
+      if (extractFirstFrame && fs.existsSync(backFramePath)) {
+        const firstFrameData = fs.readFileSync(backFramePath, { encoding: 'base64' });
+        
+        // Yeniden deneme mantığı ile yükleme
+        firstFrameUploaded = await retryAnkiConnectCall(async () => {
+          await invokeAnkiConnect('storeMediaFile', {
+            filename: `_${clipId}_back.jpg`,
+            data: firstFrameData
+          });
+          console.log(`İlk frame Anki media klasörüne eklendi: _${clipId}_back.jpg`);
+          return true; // Başarılı
+        }, 3); // 3 kez deneme
+        
+        if (!firstFrameUploaded) {
+          console.error('İlk frame 3 deneme sonunda yüklenemedi');
+        }
+      }
+      
+      // API çağrıları arasında kısa bir bekleme
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Last Frame'i doğrudan Anki media klasörüne ekle
+      if (extractLastFrame && fs.existsSync(frontFramePath)) {
+        const lastFrameData = fs.readFileSync(frontFramePath, { encoding: 'base64' });
+        
+        // Yeniden deneme mantığı ile yükleme
+        lastFrameUploaded = await retryAnkiConnectCall(async () => {
+          await invokeAnkiConnect('storeMediaFile', {
+            filename: `_${clipId}_front.jpg`,
+            data: lastFrameData
+          });
+          console.log(`Son frame Anki media klasörüne eklendi: _${clipId}_front.jpg`);
+          return true; // Başarılı
+        }, 3); // 3 kez deneme
+        
+        if (!lastFrameUploaded) {
+          console.error('Son frame 3 deneme sonunda yüklenemedi');
+        }
+      }
+      
+      // Frame'lerin yüklenmesi başarısız olduysa kullanıcıya bildirmek için kontrol
+      if ((extractFirstFrame && !firstFrameUploaded) || (extractLastFrame && !lastFrameUploaded)) {
+        console.warn('Bazı frame dosyaları Anki media klasörüne yüklenemedi.');
+        // Kullanıcıya bir şekilde bildirilebilir (optional)
+      }
+    }
     
     // Dosyayı base64'e çevir
     const videoData = fs.readFileSync(clipFilePath, { encoding: 'base64' });
+    
+    // Video alanını belirle (Alan adı model şemasına göre değişebilir)
+    const videoFields = [];
+    
+    // Note data fields içinde Video veya benzer bir alan var mı kontrol et
+    for (const fieldName in noteData.fields) {
+      if (fieldName === 'Video' || fieldName.toLowerCase() === 'video') {
+        videoFields.push(fieldName);
+      }
+    }
+    
+    // Eğer uygun alan bulunamadıysa varsayılan olarak Video kullan
+    if (videoFields.length === 0) {
+      videoFields.push('Video');
+    }
     
     // noteData'ya video parametresini ekle
     noteData.video = [{
       filename: `${clipId}.webm`,
       data: videoData,
-      fields: ['Video'] // Video alanına ekle
+      fields: videoFields
     }];
     
-    // Anki'ye notu gönder
-    const result = await invokeAnkiConnect('addNote', { note: noteData });
+    // Anki'ye notu gönder - yeniden deneme mantığı ile
+    const result = await retryAnkiConnectCall(async () => {
+      return await invokeAnkiConnect('addNote', { note: noteData });
+    }, 2); // 2 kez deneme
     
-    // Geçici dosyayı temizle
+    // Geçici dosyaları temizle
     try {
-      fs.unlinkSync(clipFilePath);
+      if (fs.existsSync(clipFilePath)) {
+        fs.unlinkSync(clipFilePath);
+      }
+      
+      if (extractFirstFrame && fs.existsSync(backFramePath)) {
+        fs.unlinkSync(backFramePath);
+      }
+      
+      if (extractLastFrame && fs.existsSync(frontFramePath)) {
+        fs.unlinkSync(frontFramePath);
+      }
     } catch (err) {
       console.warn('Geçici dosya temizlenemedi:', err);
     }
@@ -289,6 +470,83 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
     throw error;
   }
 });
+
+// Anki-Connect API çağrılarını yeniden deneme yardımcı fonksiyonu
+async function retryAnkiConnectCall(fn, maxRetries = 3) {
+  let lastError = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      console.warn(`Anki-Connect API çağrısı başarısız (${attempt}/${maxRetries}):`, error.message);
+      
+      if (error.message && error.message.includes('duplicate')) {
+        // Mükerrer not hatası, bu beklenen bir durum olabilir, yeniden denemeye gerek yok
+        throw error;
+      }
+      
+      // Son deneme değilse bekle
+      if (attempt < maxRetries) {
+        const delay = 1000 * attempt; // Her denemede artan bekleme süresi
+        console.log(`${delay}ms bekledikten sonra yeniden denenecek...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  // Tüm denemeler başarısız olduysa son hatayı fırlat
+  throw lastError;
+}
+
+// Videodan belirli bir frame'i çıkarma fonksiyonu
+async function captureVideoFrame(videoPath, outputPath, timestamp, framePosition) {
+  return new Promise((resolve, reject) => {
+    console.log(`Frame çıkarılıyor: ${framePosition}, zaman: ${timestamp}`);
+    
+    // Komut ve argümanları hazırla
+    let ffmpegCommand = ffmpeg(videoPath);
+    
+    if (framePosition === 'first') {
+      // İlk frame için genellikle tam başlangıç noktasını kullanıyoruz
+      ffmpegCommand
+        .seekInput(timestamp)  // Belirtilen zamana git
+        .frames(1)            // Sadece 1 frame al
+        .output(outputPath)
+        .outputOptions(['-q:v', '1']) // En yüksek kalitede JPEG
+        .on('end', () => {
+          console.log(`İlk frame başarıyla kaydedildi: ${outputPath}`);
+          resolve(outputPath);
+        })
+        .on('error', (err) => {
+          console.error(`İlk frame çıkarma hatası:`, err);
+          reject(err);
+        });
+    } else if (framePosition === 'last') {
+      // Son frame için, belirtilen bitiş zamanından hemen önceki frame'i almaya çalışıyoruz
+      // Küçük bir mikrosaniye geri gidelim (ancak çok küçük olmalı)
+      const adjustedTime = Math.max(0, timestamp - 0.001); 
+      
+      ffmpegCommand
+        .seekInput(adjustedTime)  // Son zamandan biraz önce
+        .frames(1)                // Sadece 1 frame al
+        .output(outputPath)
+        .outputOptions(['-q:v', '1']) // En yüksek kalitede JPEG
+        .on('end', () => {
+          console.log(`Son frame başarıyla kaydedildi: ${outputPath}`);
+          resolve(outputPath);
+        })
+        .on('error', (err) => {
+          console.error(`Son frame çıkarma hatası:`, err);
+          reject(err);
+        });
+    }
+    
+    // İşlemi başlat
+    ffmpegCommand.run();
+  });
+}
 
 // FFmpeg ile video klip oluşturma fonksiyonu
 function createVideoClip(videoPath, startTime, endTime, outputPath) {
@@ -498,7 +756,7 @@ function parseSrtContent(content) {
 
 // Klip oluşturma işlemi
 ipcMain.handle('create-clip', async (event, args) => {
-  const { videoPath, subtitlePath, startTime, endTime, text, includePrev, includeNext } = args;
+  const { videoPath, subtitlePath, startTime, endTime, text, includePrev, includeNext, startIndex, endIndex } = args;
   
   try {
     // Çıktı klasörünü oluştur
@@ -510,8 +768,11 @@ ipcMain.handle('create-clip', async (event, args) => {
       fs.mkdirSync(outputDir, { recursive: true });
     }
     
-    // Dosya adını oluştur - milisaniyeleri de dahil et
-    const clipName = `${formatTimeForFileName(startTime)}-${formatTimeForFileName(endTime)}_${videoName}`;
+    // Altyazı segment numarasını oluştur
+    const startIndexPadded = startIndex.toString().padStart(4, '0');
+    const endIndexPadded = endIndex.toString().padStart(4, '0'); 
+    const clipName = `${startIndexPadded}-${endIndexPadded}_${videoName}`;
+    
     const outputPath = path.join(outputDir, `${clipName}.mp4`);
     const webmPath = path.join(outputDir, `${clipName}.webm`);
     
@@ -573,12 +834,11 @@ ipcMain.handle('create-clip', async (event, args) => {
 
 // Dosya adı için güvenli zaman formatı (dosya adı olarak kullanılacak)
 function formatTimeForFileName(seconds) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+  const minutes = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-  const ms = Math.floor((seconds % 1) * 1000);
   
-  return `${hours.toString().padStart(2, '0')}h${minutes.toString().padStart(2, '0')}m${secs.toString().padStart(2, '0')}s${ms.toString().padStart(3, '0')}ms`;
+  // MM:SS formatında döndür (0424 gibi)
+  return `${minutes.toString().padStart(2, '0')}${secs.toString().padStart(2, '0')}`;
 }
 
 // Anki'ye kart gönderme (AnkiConnect API kullanarak)
@@ -1156,8 +1416,8 @@ async function listEmbeddedSubtitles(videoPath) {
                 displayName = title;
               } else {
                 displayName = `Stream #${streamIndex}`;
+              }
             }
-          }
           
           return {
               index: streamIndex,
@@ -1254,5 +1514,21 @@ ipcMain.handle('list-embedded-subtitles', async (event, videoPath) => {
   } catch (error) {
     console.error('Dahili altyazıları listeleme hatası:', error);
     return [];
+  }
+});
+
+// Anki not tiplerini yenile
+ipcMain.handle('reload-anki-data', async () => {
+  try {
+    console.log('Anki verilerini yenileme isteği alındı...');
+    
+    // Bu komut Anki-Connect üzerinden Anki'ye verileri yeniden yüklemesini söyler
+    await invokeAnkiConnect('reloadCollection');
+    
+    console.log('Anki verileri başarıyla yenilendi.');
+    return true;
+  } catch (error) {
+    console.error('Anki verileri yenilenirken hata oluştu:', error);
+    throw error;
   }
 }); 
