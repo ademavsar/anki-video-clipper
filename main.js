@@ -327,7 +327,8 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
       clipId, 
       noteData,
       extractFirstFrame = false,
-      extractLastFrame = false
+      extractLastFrame = false,
+      subtitleSource = { type: 'internal', index: 0, path: null }
     } = args;
     
     // Geçici dizini tanımla
@@ -343,16 +344,20 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
     // VTT dosyası için yol belirle
     const vttFilePath = path.join(tempDir, `_${clipId}.vtt`);
     
+    // ASS dosyası için yol belirle
+    const assFilePath = path.join(tempDir, `_${clipId}.ass`);
+    
     // Klip oluştur
     await createVideoClip(videoPath, startTime, endTime, clipFilePath);
     
-    // Altyazı dosyasını oluştur
-    await extractSubtitleClip(videoPath, startTime, endTime, vttFilePath);
+    // Altyazı dosyalarını oluştur
+    const subtitleResult = await extractSubtitleClip(videoPath, startTime, endTime, vttFilePath, subtitleSource);
     
     // Frame çıkarma ve yükleme başarısını takip etmek için değişkenler
     let firstFrameUploaded = !extractFirstFrame; // Eğer çıkarılmayacaksa başarılı kabul et
     let lastFrameUploaded = !extractLastFrame;
     let subtitleUploaded = false;
+    let assUploaded = false;
     
     // First frame ve last frame çıkarma işlemleri
     if (extractFirstFrame || extractLastFrame) {
@@ -424,9 +429,9 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
       }
     }
     
-    // SRT dosyasını Anki'ye gönder
-    if (fs.existsSync(vttFilePath)) {
-      const subtitleData = fs.readFileSync(vttFilePath, { encoding: 'base64' });
+    // VTT dosyasını Anki'ye gönder
+    if (subtitleResult && subtitleResult.vtt && fs.existsSync(subtitleResult.vtt)) {
+      const subtitleData = fs.readFileSync(subtitleResult.vtt, { encoding: 'base64' });
       
       // Yeniden deneme mantığı ile yükleme
       subtitleUploaded = await retryAnkiConnectCall(async () => {
@@ -440,6 +445,25 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
       
       if (!subtitleUploaded) {
         console.error('VTT dosyası 3 deneme sonunda yüklenemedi');
+      }
+    }
+    
+    // ASS dosyasını Anki'ye gönder
+    if (subtitleResult && subtitleResult.ass && fs.existsSync(subtitleResult.ass)) {
+      const assSubtitleData = fs.readFileSync(subtitleResult.ass, { encoding: 'base64' });
+      
+      // Yeniden deneme mantığı ile yükleme
+      assUploaded = await retryAnkiConnectCall(async () => {
+        await invokeAnkiConnect('storeMediaFile', {
+          filename: `_${clipId}.ass`,
+          data: assSubtitleData
+        });
+        console.log(`ASS dosyası Anki media klasörüne eklendi: _${clipId}.ass`);
+        return true; // Başarılı
+      }, 3); // 3 kez deneme
+      
+      if (!assUploaded) {
+        console.error('ASS dosyası 3 deneme sonunda yüklenemedi');
       }
     }
     
@@ -473,6 +497,11 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
       noteData.fields.Subtitle = `_${clipId}.vtt`;
     }
     
+    // ASS dosya adını noteData'ya ekle
+    if (assUploaded) {
+      noteData.fields.SubtitleAss = `_${clipId}.ass`;
+    }
+    
     // Anki'ye notu gönder - yeniden deneme mantığı ile
     const result = await retryAnkiConnectCall(async () => {
       return await invokeAnkiConnect('addNote', { note: noteData });
@@ -492,8 +521,12 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
         fs.unlinkSync(backFramePath);
       }
       
-      if (fs.existsSync(vttFilePath)) {
-        fs.unlinkSync(vttFilePath);
+      if (subtitleResult && subtitleResult.vtt && fs.existsSync(subtitleResult.vtt)) {
+        fs.unlinkSync(subtitleResult.vtt);
+      }
+      
+      if (subtitleResult && subtitleResult.ass && fs.existsSync(subtitleResult.ass)) {
+        fs.unlinkSync(subtitleResult.ass);
       }
     } catch (err) {
       console.warn('Geçici dosya temizlenemedi:', err);
@@ -637,53 +670,159 @@ function createVideoClip(videoPath, startTime, endTime, outputPath) {
 }
 
 // Altyazı (subtitle) klip oluşturma fonksiyonu
-function extractSubtitleClip(videoPath, startTime, endTime, outputPath) {
+function extractSubtitleClip(videoPath, startTime, endTime, outputPath, subtitleSource) {
   return new Promise((resolve, reject) => {
-    // FFmpeg komutu
-    const ffmpegArgs = [
-      '-ss', startTime.toString(),
-      '-to', endTime.toString(),
-      '-i', videoPath,
-      '-map', '0:s:0', // İlk altyazı akışını seç
-      '-c:s', 'webvtt',   // WebVTT formatında çıktı al
-      '-y',           // Varolan dosyanın üzerine yaz
-      outputPath
-    ];
+    // Çıktı yolundan dosya adını ve uzantısını al
+    const outputExt = path.extname(outputPath);
+    const outputBaseName = path.basename(outputPath, outputExt);
+    const outputDir = path.dirname(outputPath);
     
-    console.log('FFmpeg VTT komutu:', 'ffmpeg', ffmpegArgs.join(' '));
+    // ASS çıktı yolunu oluştur
+    const assOutputPath = path.join(outputDir, `${outputBaseName}.ass`);
     
-    // FFmpeg işlemini başlat
-    const ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
+    // Aşağıdaki iki durum için FFmpeg argümanlarını hazırla:
+    // 1. Harici altyazı dosyası varsa (type='external')
+    // 2. Dahili altyazı akışı seçiliyse (type='internal')
+    let vttArgs, assArgs;
     
-    // Çıktıları topla
-    let stdoutData = '';
-    let stderrData = '';
+    if (subtitleSource.type === 'external' && subtitleSource.path) {
+      // Harici altyazı dosyası kullan
+      console.log(`Harici altyazı dosyası kullanılıyor: ${subtitleSource.path}`);
+      
+      vttArgs = [
+        '-ss', startTime.toString(),
+        '-to', endTime.toString(),
+        '-i', subtitleSource.path, // Harici altyazı dosyası
+        '-c:s', 'webvtt',
+        '-y',
+        outputPath
+      ];
+      
+      assArgs = [
+        '-ss', startTime.toString(),
+        '-to', endTime.toString(),
+        '-i', subtitleSource.path, // Harici altyazı dosyası
+        '-c:s', 'ass',
+        '-y',
+        assOutputPath
+      ];
+    } else {
+      // Dahili altyazı akışı kullan
+      const subtitleIndex = subtitleSource.index || 0;
+      console.log(`Dahili altyazı akışı kullanılıyor, index: ${subtitleIndex}`);
+      
+      vttArgs = [
+        '-ss', startTime.toString(),
+        '-to', endTime.toString(),
+        '-i', videoPath,
+        '-map', `0:s:${subtitleIndex}`, // Kullanıcının seçtiği altyazı akışı
+        '-c:s', 'webvtt',
+        '-y',
+        outputPath
+      ];
+      
+      assArgs = [
+        '-ss', startTime.toString(),
+        '-to', endTime.toString(),
+        '-i', videoPath,
+        '-map', `0:s:${subtitleIndex}`, // Kullanıcının seçtiği altyazı akışı
+        '-c:s', 'ass',
+        '-y',
+        assOutputPath
+      ];
+    }
     
-    ffmpegProcess.stdout.on('data', (data) => {
-      stdoutData += data.toString();
-    });
-    
-    ffmpegProcess.stderr.on('data', (data) => {
-      stderrData += data.toString();
-    });
-    
-    // İşlem tamamlandığında
-    ffmpegProcess.on('close', (code) => {
-      if (code === 0) {
-        console.log('Altyazı dosyası başarıyla oluşturuldu:', outputPath);
-        resolve(outputPath);
-      } else {
-        console.error('FFmpeg altyazı çıkarma hatası:', stderrData);
+    // VTT formatında altyazı çıkarma
+    const vttPromise = new Promise((resolveVtt, rejectVtt) => {
+      console.log('FFmpeg VTT komutu:', 'ffmpeg', vttArgs.join(' '));
+      
+      // FFmpeg işlemini başlat
+      const ffmpegProcess = spawn('ffmpeg', vttArgs);
+      
+      // Çıktıları topla
+      let stdoutData = '';
+      let stderrData = '';
+      
+      ffmpegProcess.stdout.on('data', (data) => {
+        stdoutData += data.toString();
+      });
+      
+      ffmpegProcess.stderr.on('data', (data) => {
+        stderrData += data.toString();
+      });
+      
+      // İşlem tamamlandığında
+      ffmpegProcess.on('close', (code) => {
+        if (code === 0) {
+          console.log('VTT altyazı dosyası başarıyla oluşturuldu:', outputPath);
+          resolveVtt(outputPath);
+        } else {
+          console.error('FFmpeg VTT altyazı çıkarma hatası:', stderrData);
+          // Hata durumunda bile devam et, kritik işlem değil
+          resolveVtt(null);
+        }
+      });
+      
+      ffmpegProcess.on('error', (err) => {
+        console.error('FFmpeg VTT altyazı başlatma hatası:', err);
         // Hata durumunda bile devam et, kritik işlem değil
-        resolve(null);
-      }
+        resolveVtt(null);
+      });
     });
     
-    ffmpegProcess.on('error', (err) => {
-      console.error('FFmpeg altyazı başlatma hatası:', err);
-      // Hata durumunda bile devam et, kritik işlem değil
-      resolve(null);
+    // ASS formatında altyazı çıkarma
+    const assPromise = new Promise((resolveAss, rejectAss) => {
+      console.log('FFmpeg ASS komutu:', 'ffmpeg', assArgs.join(' '));
+      
+      // FFmpeg işlemini başlat
+      const ffmpegProcess = spawn('ffmpeg', assArgs);
+      
+      // Çıktıları topla
+      let stdoutData = '';
+      let stderrData = '';
+      
+      ffmpegProcess.stdout.on('data', (data) => {
+        stdoutData += data.toString();
+      });
+      
+      ffmpegProcess.stderr.on('data', (data) => {
+        stderrData += data.toString();
+      });
+      
+      // İşlem tamamlandığında
+      ffmpegProcess.on('close', (code) => {
+        if (code === 0) {
+          console.log('ASS altyazı dosyası başarıyla oluşturuldu:', assOutputPath);
+          resolveAss(assOutputPath);
+        } else {
+          console.error('FFmpeg ASS altyazı çıkarma hatası:', stderrData);
+          // Hata durumunda bile devam et, kritik işlem değil
+          resolveAss(null);
+        }
+      });
+      
+      ffmpegProcess.on('error', (err) => {
+        console.error('FFmpeg ASS altyazı başlatma hatası:', err);
+        // Hata durumunda bile devam et, kritik işlem değil
+        resolveAss(null);
+      });
     });
+    
+    // Her iki altyazı çıkarma işlemini de bekle
+    Promise.all([vttPromise, assPromise])
+      .then(([vttResult, assResult]) => {
+        // En az bir sonuç başarılı ise başarı kabul et
+        if (vttResult || assResult) {
+          resolve({ vtt: vttResult, ass: assResult });
+        } else {
+          // Her iki çıkarma işlemi de başarısız olduysa hatayı bildir
+          resolve(null);
+        }
+      })
+      .catch(error => {
+        console.error('Altyazı çıkarma işleminde hata:', error);
+        resolve(null);
+      });
   });
 }
 

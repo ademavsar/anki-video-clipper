@@ -45,6 +45,7 @@ const ankiVideoInput = document.getElementById('anki-video');
 const ankiFirstFrameInput = document.getElementById('anki-first-frame');
 const ankiLastFrameInput = document.getElementById('anki-last-frame');
 const ankiSubtitleInput = document.getElementById('anki-subtitle');
+const ankiSubtitleAssInput = document.getElementById('anki-subtitle-ass');
 const ankiWordInput = document.getElementById('anki-word');
 const ankiEnInput = document.getElementById('anki-en');
 const ankiTrInput = document.getElementById('anki-tr');
@@ -1300,6 +1301,7 @@ sendToAnkiBtn.addEventListener('click', () => {
   const firstFrameField = `_${clipId}_front.jpg`;
   const lastFrameField = `_${clipId}_back.jpg`;
   const subtitleField = `_${clipId}.vtt`;
+  const subtitleAssField = `_${clipId}.ass`;
   
   // Form alanlarını doldur
   ankiIdInput.value = clipId;
@@ -1307,6 +1309,7 @@ sendToAnkiBtn.addEventListener('click', () => {
   ankiFirstFrameInput.value = firstFrameField;
   ankiLastFrameInput.value = lastFrameField;
   ankiSubtitleInput.value = subtitleField;
+  ankiSubtitleAssInput.value = subtitleAssField;
   
   // Eski word ve diğer alanlar artık dinamik olarak yüklenecek
   
@@ -1387,7 +1390,12 @@ ankiSendBtn.addEventListener('click', async () => {
         noteData: noteData,
         extractFirstFrame: true,
         extractLastFrame: true,
-        embedSubtitles: appState.embedSubtitles
+        embedSubtitles: appState.embedSubtitles,
+        subtitleSource: {
+          type: appState.subtitlePath ? 'external' : 'internal',
+          path: appState.subtitlePath,
+          index: appState.currentSubtitleIndex
+        }
       });
       
       // Başarı mesajı göster
