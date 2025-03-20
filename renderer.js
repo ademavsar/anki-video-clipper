@@ -1298,7 +1298,7 @@ sendToAnkiBtn.addEventListener('click', () => {
   // İlk ve son kareler için dosya adları
   const firstFrameField = `_${clipId}_front.jpg`;
   const lastFrameField = `_${clipId}_back.jpg`;
-  const subtitleField = `_${clipId}.srt`;
+  const subtitleField = `_${clipId}.vtt`;
   
   // Form alanlarını doldur
   ankiIdInput.value = clipId;

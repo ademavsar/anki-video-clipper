@@ -340,19 +340,19 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
     const frontFramePath = path.join(tempDir, `_${clipId}_front.jpg`);
     const backFramePath = path.join(tempDir, `_${clipId}_back.jpg`);
     
-    // SRT dosyası için yol belirle
-    const srtFilePath = path.join(tempDir, `_${clipId}.srt`);
+    // VTT dosyası için yol belirle
+    const vttFilePath = path.join(tempDir, `_${clipId}.vtt`);
     
     // Klip oluştur
     await createVideoClip(videoPath, startTime, endTime, clipFilePath);
     
     // Altyazı dosyasını oluştur
-    await extractSubtitleClip(videoPath, startTime, endTime, srtFilePath);
+    await extractSubtitleClip(videoPath, startTime, endTime, vttFilePath);
     
     // Frame çıkarma ve yükleme başarısını takip etmek için değişkenler
     let firstFrameUploaded = !extractFirstFrame; // Eğer çıkarılmayacaksa başarılı kabul et
     let lastFrameUploaded = !extractLastFrame;
-    let srtUploaded = false;
+    let subtitleUploaded = false;
     
     // First frame ve last frame çıkarma işlemleri
     if (extractFirstFrame || extractLastFrame) {
@@ -425,21 +425,21 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
     }
     
     // SRT dosyasını Anki'ye gönder
-    if (fs.existsSync(srtFilePath)) {
-      const srtData = fs.readFileSync(srtFilePath, { encoding: 'base64' });
+    if (fs.existsSync(vttFilePath)) {
+      const subtitleData = fs.readFileSync(vttFilePath, { encoding: 'base64' });
       
       // Yeniden deneme mantığı ile yükleme
-      srtUploaded = await retryAnkiConnectCall(async () => {
+      subtitleUploaded = await retryAnkiConnectCall(async () => {
         await invokeAnkiConnect('storeMediaFile', {
-          filename: `_${clipId}.srt`,
-          data: srtData
+          filename: `_${clipId}.vtt`,
+          data: subtitleData
         });
-        console.log(`SRT dosyası Anki media klasörüne eklendi: _${clipId}.srt`);
+        console.log(`VTT dosyası Anki media klasörüne eklendi: _${clipId}.vtt`);
         return true; // Başarılı
       }, 3); // 3 kez deneme
       
-      if (!srtUploaded) {
-        console.error('SRT dosyası 3 deneme sonunda yüklenemedi');
+      if (!subtitleUploaded) {
+        console.error('VTT dosyası 3 deneme sonunda yüklenemedi');
       }
     }
     
@@ -469,8 +469,8 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
     }];
     
     // SRT dosya adını noteData'ya ekle
-    if (srtUploaded) {
-      noteData.fields.Subtitle = `_${clipId}.srt`;
+    if (subtitleUploaded) {
+      noteData.fields.Subtitle = `_${clipId}.vtt`;
     }
     
     // Anki'ye notu gönder - yeniden deneme mantığı ile
@@ -492,8 +492,8 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
         fs.unlinkSync(backFramePath);
       }
       
-      if (fs.existsSync(srtFilePath)) {
-        fs.unlinkSync(srtFilePath);
+      if (fs.existsSync(vttFilePath)) {
+        fs.unlinkSync(vttFilePath);
       }
     } catch (err) {
       console.warn('Geçici dosya temizlenemedi:', err);
@@ -645,12 +645,12 @@ function extractSubtitleClip(videoPath, startTime, endTime, outputPath) {
       '-to', endTime.toString(),
       '-i', videoPath,
       '-map', '0:s:0', // İlk altyazı akışını seç
-      '-c:s', 'srt',   // SRT formatında çıktı al
+      '-c:s', 'webvtt',   // WebVTT formatında çıktı al
       '-y',           // Varolan dosyanın üzerine yaz
       outputPath
     ];
     
-    console.log('FFmpeg SRT komutu:', 'ffmpeg', ffmpegArgs.join(' '));
+    console.log('FFmpeg VTT komutu:', 'ffmpeg', ffmpegArgs.join(' '));
     
     // FFmpeg işlemini başlat
     const ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
