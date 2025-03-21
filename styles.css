@@ -682,7 +682,6 @@ body {
 /* Video Altyazı Stili */
 .video-subtitle {
   position: absolute;
-  bottom: 60px; /* Video kontrollerinin üzerinde */
   left: 0;
   right: 0;
   text-align: center;
@@ -697,6 +696,7 @@ body {
   max-width: 80%;
   margin: 0 auto;
   border-radius: 4px;
+  /* Dikey pozisyonlamayı JS ile yapıyoruz */
 }
 
 /* Modal Pencere Stilleri */
