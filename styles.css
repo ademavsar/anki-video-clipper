@@ -1238,13 +1238,31 @@ body {
 
 /* Anki Card Modal Hata ve Mesaj Stilleri */
 .error-message {
-  padding: 10px;
-  margin: 10px 0;
-  background-color: rgba(231, 76, 60, 0.2);
-  border-left: 4px solid #e74c3c;
-  color: #e74c3c;
-  border-radius: 3px;
-  font-size: 14px;
+  background-color: #ffebee;
+  border-left: 4px solid #f44336;
+  padding: 12px;
+  margin-bottom: 15px;
+  color: #b71c1c;
+  border-radius: 2px;
+}
+
+.warning-message {
+  background-color: #fff8e1;
+  border-left: 4px solid #ffc107;
+  padding: 12px;
+  margin-bottom: 15px;
+  color: #795548;
+  border-radius: 2px;
+}
+
+.warning-message strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #ff6f00;
+}
+
+.warning-message p {
+  margin: 6px 0;
 }
 
 .no-fields-message {

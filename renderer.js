@@ -2217,22 +2217,74 @@ async function fetchAnkiModels() {
     // Anki Connect API'den not tiplerini çek (IPC üzerinden)
     const models = await window.electronAPI.getAnkiModels();
     
+    // Id ve Video alanlarına sahip uygun modelleri bulmak için
+    const modelFields = {};
+    const suitableModels = [];
+    
+    // Tüm modeller için alanları çek ve kontrol et
+    for (const model of models) {
+      try {
+        const fields = await window.electronAPI.getModelFields(model);
+        modelFields[model] = fields;
+        
+        // Id ve Video alanlarına sahip mi kontrol et
+        if (fields.includes('Id') && fields.includes('Video')) {
+          suitableModels.push(model);
+          console.log(`Uygun model bulundu: ${model} (Id ve Video alanlarına sahip)`);
+        }
+      } catch (error) {
+        console.warn(`${model} not tipinin alanları çekilirken hata:`, error);
+      }
+    }
+    
     // Dropdown'ı doldur
     ankiModelSelect.innerHTML = '';
     models.sort().forEach(model => {
       const option = document.createElement('option');
       option.value = model;
       option.textContent = model;
+      
+      // Uygun modelleri işaretle
+      if (suitableModels.includes(model)) {
+        option.textContent = `${model} ✓`;
+        option.dataset.isSuitable = 'true';
+      }
+      
       ankiModelSelect.appendChild(option);
     });
     
-    // Eğer daha önce seçilmiş bir not tipi varsa, onu seç
+    // Uygun model varsa ve daha önce seçilmiş uygun bir model yoksa, ilk uygun modeli seç
+    let selectedModel = null;
+    
     if (appState.lastUsedModel && models.includes(appState.lastUsedModel)) {
-      ankiModelSelect.value = appState.lastUsedModel;
+      // Daha önce kullanılan model varsa kontrol et
+      if (suitableModels.includes(appState.lastUsedModel)) {
+        // Daha önce kullanılan model uygun ise onu seç
+        selectedModel = appState.lastUsedModel;
+      } else if (suitableModels.length > 0) {
+        // Değilse, uygun bir model seç
+        selectedModel = suitableModels[0];
+      } else {
+        // Uygun model yoksa, en son kullandığı modeli seç
+        selectedModel = appState.lastUsedModel;
+      }
+    } else if (suitableModels.length > 0) {
+      // Uygun model varsa ilk uygun modeli seç
+      selectedModel = suitableModels[0];
     } else if (models.length > 0) {
-      // İlk not tipini seç
-      ankiModelSelect.value = models[0];
-      appState.lastUsedModel = models[0];
+      // Uygun model yoksa ilk modeli seç
+      selectedModel = models[0];
+    }
+    
+    // Seçilen modeli ayarla
+    if (selectedModel) {
+      ankiModelSelect.value = selectedModel;
+      appState.lastUsedModel = selectedModel;
+      
+      // Eğer uygun bir model seçilmişse bilgi mesajı göster
+      if (!suitableModels.includes(selectedModel)) {
+        console.warn(`Seçilen model (${selectedModel}) Id ve Video alanlarına sahip değil.`);
+      }
     }
     
     // Değişiklik olayını tetikle (change event listener kullanılacak)
@@ -2337,9 +2389,41 @@ async function updateModelFields(modelName) {
       throw new Error(`${modelName} not tipi için hiç alan bulunamadı!`);
     }
     
+    // Id ve Video alanlarının varlığını kontrol et
+    const hasIdField = fields.includes('Id');
+    const hasVideoField = fields.includes('Video');
+    const isSuitableModel = hasIdField && hasVideoField;
+    
     // Şu an content tabında manuel olarak düzenlenebilen alanları izliyoruz
     const contentTab = document.getElementById('content-tab');
     contentTab.innerHTML = '';
+    
+    // Eğer model uygun değilse uyarı mesajı göster
+    if (!isSuitableModel) {
+      const warningDiv = document.createElement('div');
+      warningDiv.className = 'warning-message';
+      
+      let missingFields = [];
+      if (!hasIdField) missingFields.push('Id');
+      if (!hasVideoField) missingFields.push('Video');
+      
+      warningDiv.innerHTML = `
+        <strong>Uyarı: Not tipi eksik alanlar içeriyor!</strong>
+        <p>Seçilen "${modelName}" not tipinde şu zorunlu alanlar eksik: ${missingFields.join(', ')}</p>
+        <p>Bu not tipiyle kart oluşturmak için, Anki'de bu not tipine eksik alanları eklemeniz gerekir.</p>
+        <p>Alternatif olarak, ✓ işaretli başka bir not tipi seçebilirsiniz.</p>
+      `;
+      
+      contentTab.appendChild(warningDiv);
+      
+      // Send to Anki butonunu devre dışı bırak
+      ankiSendBtn.disabled = true;
+      ankiSendBtn.title = `Not tipi "${modelName}" gerekli alanları içermiyor: ${missingFields.join(', ')}`;
+    } else {
+      // Send to Anki butonunu etkinleştir
+      ankiSendBtn.disabled = false;
+      ankiSendBtn.title = 'Kartı Anki\'ye gönder';
+    }
     
     // Temel alanları her zaman media sekmesinde tut
     const mediaFields = ['Id', 'Video', 'FirstFrame', 'LastFrame'];
@@ -2386,8 +2470,8 @@ async function updateModelFields(modelName) {
     
     // Herhangi bir alan oluşturulup oluşturulmadığını kontrol et
     const formGroups = contentTab.querySelectorAll('.form-group');
-    if (formGroups.length === 0) {
-      // Hiç alan oluşturulmadıysa bir mesaj göster
+    if (formGroups.length === 0 && isSuitableModel) {
+      // Hiç alan oluşturulmadıysa bir mesaj göster (sadece uygun model ise)
       const noFieldsMessage = document.createElement('div');
       noFieldsMessage.className = 'no-fields-message';
       noFieldsMessage.textContent = `${modelName} not tipinde gösterilecek içerik alanı bulunamadı.`;
@@ -2405,6 +2489,10 @@ async function updateModelFields(modelName) {
     errorMessage.className = 'error-message';
     errorMessage.textContent = `Not tipi alanları yüklenirken bir hata oluştu: ${error.message}`;
     contentTab.appendChild(errorMessage);
+    
+    // Hata durumunda Send to Anki butonunu devre dışı bırak
+    ankiSendBtn.disabled = true;
+    ankiSendBtn.title = 'Not tipi alanları yüklenemediği için devre dışı';
   }
 }
 
