@@ -1742,10 +1742,62 @@ fontSizeInput.addEventListener('input', () => {
   fontSizeValue.textContent = `${fontSizeInput.value}px`;
 });
 
+// Font Size slideri üzerinde mouse tekerleği ile ince ayar
+fontSizeInput.addEventListener('wheel', (e) => {
+  e.preventDefault(); // Sayfanın scroll etmesini engelle
+  
+  // Tekerlek yönüne göre değeri artır veya azalt
+  // Tekerlek aşağı = değeri azalt, tekerlek yukarı = değeri artır
+  const direction = e.deltaY > 0 ? -1 : 1; // Font size için adım değeri: 1
+  
+  // Yeni değeri hesapla (sınırlar içinde)
+  const currentValue = parseInt(fontSizeInput.value);
+  const newValue = Math.max(parseInt(fontSizeInput.min), Math.min(parseInt(fontSizeInput.max), currentValue + direction));
+  
+  // Değeri güncelle
+  fontSizeInput.value = newValue;
+  fontSizeValue.textContent = `${newValue}px`;
+  
+  // Önizlemeyi güncelle
+  updateSubtitlePreview();
+  
+  // Gerçek zamanlı olarak font boyutunu da güncelle
+  appState.subtitleSettings.fontSize = newValue;
+  applySubtitleStyles();
+});
+
 // Arkaplan opaklık değerini göster
 bgOpacityInput.addEventListener('input', () => {
-  const opacityPercent = Math.round(bgOpacityInput.value * 100);
-  bgOpacityValue.textContent = `${opacityPercent}%`;
+  const opacity = bgOpacityInput.value;
+  const percent = Math.round(opacity * 100);
+  bgOpacityValue.textContent = `${percent}%`;
+  updateSubtitlePreview();
+});
+
+// Background Opacity slideri üzerinde mouse tekerleği ile ince ayar
+bgOpacityInput.addEventListener('wheel', (e) => {
+  e.preventDefault(); // Sayfanın scroll etmesini engelle
+  
+  // Tekerlek yönüne göre değeri artır veya azalt
+  // Tekerlek aşağı = değeri azalt, tekerlek yukarı = değeri artır
+  const direction = e.deltaY > 0 ? -0.1 : 0.1; // Opacity için adım değeri: 0.1
+  
+  // Yeni değeri hesapla (sınırlar içinde)
+  const currentValue = parseFloat(bgOpacityInput.value);
+  const newValue = Math.max(parseFloat(bgOpacityInput.min), Math.min(parseFloat(bgOpacityInput.max), currentValue + direction));
+  const roundedValue = Math.round(newValue * 10) / 10; // 0.1 adımlarla yuvarla
+  
+  // Değeri güncelle
+  bgOpacityInput.value = roundedValue;
+  const percent = Math.round(roundedValue * 100);
+  bgOpacityValue.textContent = `${percent}%`;
+  
+  // Önizlemeyi güncelle
+  updateSubtitlePreview();
+  
+  // Gerçek zamanlı olarak arkaplan opaklığını da güncelle
+  appState.subtitleSettings.bgOpacity = roundedValue;
+  applySubtitleStyles();
 });
 
 // Mevcut ayarları form elemanlarına yükle
