@@ -619,53 +619,123 @@ async function captureVideoFrame(videoPath, outputPath, timestamp, framePosition
 // FFmpeg ile video klip oluşturma fonksiyonu
 function createVideoClip(videoPath, startTime, endTime, outputPath) {
   return new Promise((resolve, reject) => {
-    // FFmpeg komutu
-    const ffmpegArgs = [
-      '-ss', startTime.toString(),
-      '-to', endTime.toString(),
-      '-i', videoPath,
-      '-c:v', 'libvpx-vp9',
-      '-crf', '23',
-      '-b:v', '0',
-      '-c:a', 'libopus',
-      '-vf', 'scale=-1:480',
-      '-sn', // Altyazıları dahil etme
-      '-y', // Varolan dosyanın üzerine yaz
-      outputPath
+    // Önce video bilgilerini ffprobe ile al
+    const ffprobeArgs = [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=width,height',
+      '-of', 'json',
+      videoPath
     ];
     
-    console.log('FFmpeg komutu:', 'ffmpeg', ffmpegArgs.join(' '));
+    const ffprobeProcess = spawn('ffprobe', ffprobeArgs);
     
-    // FFmpeg işlemini başlat
-    const ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
-    
-    // Çıktıları topla
-    let stdoutData = '';
-    let stderrData = '';
-    
-    ffmpegProcess.stdout.on('data', (data) => {
-      stdoutData += data.toString();
+    let ffprobeData = '';
+    ffprobeProcess.stdout.on('data', (data) => {
+      ffprobeData += data.toString();
     });
     
-    ffmpegProcess.stderr.on('data', (data) => {
-      stderrData += data.toString();
+    let ffprobeError = '';
+    ffprobeProcess.stderr.on('data', (data) => {
+      ffprobeError += data.toString();
     });
     
-    // İşlem tamamlandığında
-    ffmpegProcess.on('close', (code) => {
-      if (code === 0) {
-        console.log('Video klip başarıyla oluşturuldu:', outputPath);
-        resolve(outputPath);
-      } else {
-        console.error('FFmpeg hatası:', stderrData);
-        reject(new Error(`FFmpeg işlemi başarısız oldu (kod: ${code}): ${stderrData}`));
+    ffprobeProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error('FFprobe hatası:', ffprobeError);
+        console.log('Video bilgileri alınamadı, varsayılan scaling kullanılıyor...');
+        
+        // Varsayılan FFmpeg komutu
+        proceedWithVideoConversion();
+        return;
+      }
+      
+      try {
+        // Video bilgilerini JSON olarak ayrıştır
+        const videoInfo = JSON.parse(ffprobeData);
+        const width = videoInfo.streams[0].width;
+        const height = videoInfo.streams[0].height;
+        
+        console.log(`Orijinal video çözünürlüğü: ${width}x${height}`);
+        
+        // Çözünürlüğe göre en-boy oranını koruyarak ve 480p'yi hedefleyerek scaling yap
+        proceedWithVideoConversion(width, height);
+      } catch (error) {
+        console.error('Video bilgileri işlenirken hata:', error);
+        proceedWithVideoConversion();
       }
     });
     
-    ffmpegProcess.on('error', (err) => {
-      console.error('FFmpeg başlatma hatası:', err);
-      reject(err);
-    });
+    // Video dönüştürme fonksiyonu
+    function proceedWithVideoConversion(width, height) {
+      // Scaling filtresi oluştur
+      let scaleFilter = 'scale=-2:480:force_original_aspect_ratio=decrease';
+      
+      // Eğer video yüksekliği zaten 480p'den küçük veya eşitse,
+      // orijinal boyutu koru ama yine de en-boy oranını düzgün ayarla
+      if (height && height <= 480) {
+        scaleFilter = 'scale=-2:' + height + ':force_original_aspect_ratio=decrease';
+      }
+      
+      // Eğer video genişliği yüksekliğinden büyükse (yatay video),
+      // genişliği 854 (480p'nin genişliği) olarak sınırla
+      if (width && height && width > height) {
+        scaleFilter = 'scale=854:-2:force_original_aspect_ratio=decrease';
+        // Eğer orijinal genişlik zaten 854'ten küçük veya eşitse, orijinal boyutu koru
+        if (width <= 854) {
+          scaleFilter = 'scale=' + width + ':-2:force_original_aspect_ratio=decrease';
+        }
+      }
+      
+      // FFmpeg komutu
+      const ffmpegArgs = [
+        '-ss', startTime.toString(),
+        '-to', endTime.toString(),
+        '-i', videoPath,
+        '-c:v', 'libvpx-vp9',
+        '-crf', '28',        // Kalite değerini biraz düşürerek dosya boyutunu küçült (23'ten 28'e)
+        '-b:v', '0',         // CRF modu için bit hızını 0 olarak ayarla
+        '-c:a', 'libopus',  
+        '-b:a', '64k',       // Ses bit hızını 64k'ya düşür (varsayılan 128k'dan)
+        '-vf', scaleFilter,  // Dinamik olarak oluşturulan scaling filtresi
+        '-sn',              // Altyazıları dahil etme
+        '-y',               // Varolan dosyanın üzerine yaz
+        outputPath
+      ];
+      
+      console.log('FFmpeg komutu:', 'ffmpeg', ffmpegArgs.join(' '));
+      
+      // FFmpeg işlemini başlat
+      const ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
+      
+      // Çıktıları topla
+      let stdoutData = '';
+      let stderrData = '';
+      
+      ffmpegProcess.stdout.on('data', (data) => {
+        stdoutData += data.toString();
+      });
+      
+      ffmpegProcess.stderr.on('data', (data) => {
+        stderrData += data.toString();
+      });
+      
+      // İşlem tamamlandığında
+      ffmpegProcess.on('close', (code) => {
+        if (code === 0) {
+          console.log('Video klip başarıyla oluşturuldu:', outputPath);
+          resolve(outputPath);
+        } else {
+          console.error('FFmpeg hatası:', stderrData);
+          reject(new Error(`FFmpeg işlemi başarısız oldu (kod: ${code}): ${stderrData}`));
+        }
+      });
+      
+      ffmpegProcess.on('error', (err) => {
+        console.error('FFmpeg başlatma hatası:', err);
+        reject(err);
+      });
+    }
   });
 }
 
@@ -1085,7 +1155,7 @@ async function checkAndConvertAudio(videoPath) {
         
         const ffmpeg = spawn('ffmpeg', [
           '-i', videoPath,
-          '-c:v', 'copy',        // Video kanalını kopyala
+          '-c:v', 'copy',        // Video kanalını kopyala (kaliteyi koru)
           '-c:a', 'aac',         // Ses kanalını AAC'ye dönüştür
           '-b:a', '192k',        // Ses bit hızı
           '-c:s', 'copy',        // Altyazıları kopyala
