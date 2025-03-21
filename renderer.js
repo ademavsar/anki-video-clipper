@@ -1763,7 +1763,11 @@ fontSizeInput.addEventListener('wheel', (e) => {
   
   // Gerçek zamanlı olarak font boyutunu da güncelle
   appState.subtitleSettings.fontSize = newValue;
-  applySubtitleStyles();
+  
+  // Eğer aktif bir altyazı varsa stilini güncelle
+  if (videoSubtitle && videoSubtitle.textContent.trim()) {
+    applySubtitleStyles();
+  }
 });
 
 // Arkaplan opaklık değerini göster
@@ -1797,7 +1801,11 @@ bgOpacityInput.addEventListener('wheel', (e) => {
   
   // Gerçek zamanlı olarak arkaplan opaklığını da güncelle
   appState.subtitleSettings.bgOpacity = roundedValue;
-  applySubtitleStyles();
+  
+  // Eğer aktif bir altyazı varsa stilini güncelle
+  if (videoSubtitle && videoSubtitle.textContent.trim()) {
+    applySubtitleStyles();
+  }
 });
 
 // Mevcut ayarları form elemanlarına yükle
@@ -1849,6 +1857,15 @@ function updateSubtitlePreview() {
 // Altyazı stillerini uygula
 function applySubtitleStyles() {
   if (!videoSubtitle) return;
+  
+  // Eğer altyazı içeriği boşsa, arka planı gösterme
+  if (!videoSubtitle.textContent.trim()) {
+    videoSubtitle.style.display = 'none';
+    return;
+  }
+  
+  // İçerik varsa göster
+  videoSubtitle.style.display = 'block';
   
   // Altyazı elementine stilleri uygula
   videoSubtitle.style.fontSize = `${appState.subtitleSettings.fontSize}px`;
@@ -2117,7 +2134,12 @@ verticalPositionInput.addEventListener('input', () => {
   
   // Gerçek zamanlı olarak altyazı konumunu da güncelle
   appState.subtitleSettings.verticalPosition = parseInt(position);
-  applySubtitleStyles();
+  
+  // Eğer aktif bir altyazı varsa stilini güncelle
+  // Aktif altyazı yoksa hiçbir şey gösterme
+  if (videoSubtitle && videoSubtitle.textContent.trim()) {
+    applySubtitleStyles();
+  }
 });
 
 // Dikey konum slideri üzerinde mouse tekerleği ile ince ayar
@@ -2141,7 +2163,11 @@ verticalPositionInput.addEventListener('wheel', (e) => {
   
   // Gerçek zamanlı olarak altyazı konumunu da güncelle
   appState.subtitleSettings.verticalPosition = newValue;
-  applySubtitleStyles();
+  
+  // Eğer aktif bir altyazı varsa stilini güncelle
+  if (videoSubtitle && videoSubtitle.textContent.trim()) {
+    applySubtitleStyles();
+  }
 });
 
 // Zaman ayarlama butonları işlevleri
