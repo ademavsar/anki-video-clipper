@@ -71,9 +71,22 @@ You can configure these settings by going to Anki → Tools → Add-ons → Anki
   - [x] Text formatting options (bold, italic)
   - [x] Advanced vertical positioning with custom percentage values
   - [x] Improved UI with dark theme compatible controls
+  - [x] Mouse wheel support for fine-tuning all sliders (font size, opacity, position)
+  - [x] Independent vertical subtitle positioning
 - [x] First/Last frame capture feature for Anki cards
 - [x] Dynamic note type field support
+- [x] Optimized video output
+  - [x] Preserved aspect ratio with smart scaling based on source material
+  - [x] 480p resolution for smaller file sizes
+  - [x] Balanced video quality (CRF 28) for efficient storage
+  - [x] Optimized audio bitrate (64k)
 - [ ] Better compatibility with various video codecs
+- [ ] Advanced subtitle embedding options
+  - [ ] Hardcoded ASS subtitles in WebM output files
+  - [ ] Customizable subtitle appearance in embedded mode
+- [ ] YouTube integration for direct video downloading
+- [ ] Theme support
+  - [ ] Light/dark theme toggle
 - [ ] Drag and drop support for video and subtitle files
 - [ ] Advanced subtitle search and filtering
 - [ ] Third-party player integration (VLC, MPC-HC, etc.)
