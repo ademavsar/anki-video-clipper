@@ -45,7 +45,6 @@ const ankiVideoInput = document.getElementById('anki-video');
 const ankiFirstFrameInput = document.getElementById('anki-first-frame');
 const ankiLastFrameInput = document.getElementById('anki-last-frame');
 const ankiSubtitleInput = document.getElementById('anki-subtitle');
-const ankiSubtitleAssInput = document.getElementById('anki-subtitle-ass');
 const ankiWordInput = document.getElementById('anki-word');
 const ankiEnInput = document.getElementById('anki-en');
 const ankiTrInput = document.getElementById('anki-tr');
@@ -184,7 +183,7 @@ let appState = {
   lastUsedDeck: null,
   convertedVideoPath: null,
   embeddedSubtitles: [], // Dahili altyazıları saklamak için
-  embedSubtitles: false // Altyazı gömme durumu
+  embedSubtitles: true // Altyazı gömme durumu - varsayılan olarak aktif
 };
 
 // Sayfa yüklendiğinde son kullanılan dosyaları ve ayarları yükle
@@ -301,9 +300,9 @@ selectMediaFilesBtn.addEventListener('click', async () => {
       
       try {
         // Ses formatını kontrol et ve gerekirse dönüştür
-        console.log("Ses formatı kontrol ediliyor...");
+        window.logger.debug('Ses formatı kontrol ediliyor...');
         const convertedPath = await window.electronAPI.checkAndConvertAudio(result.videoPath);
-        console.log("Dönüştürme işlemi tamamlandı, yol:", convertedPath);
+        window.logger.info('Dönüştürme işlemi tamamlandı');
         
         // Dönüştürülmüş dosya yolunu sakla
         appState.convertedVideoPath = convertedPath;
@@ -520,13 +519,17 @@ function parseASS(content) {
             let text = parts.slice(textCol).join(',').trim();
             text = text.replace(/{\\[^}]*}/g, ''); // Stil kodlarını kaldır
             text = text.replace(/\\N/g, '\n'); // Satır sonlarını düzelt
+            text = text.replace(/m \d+[^\n]*/g, ''); // "m" ile başlayan stil kodlarını kaldır
             
-            subtitles.push({
-              id: subtitles.length + 1,
-              startTime,
-              endTime,
-              text
-            });
+            // Sadece boş olmayan metinleri ekle
+            if (text.trim() !== '') {
+              subtitles.push({
+                id: subtitles.length + 1,
+                startTime,
+                endTime,
+                text
+              });
+            }
           }
         }
       }
@@ -1299,7 +1302,6 @@ sendToAnkiBtn.addEventListener('click', () => {
   const firstFrameField = `_${clipId}_front.jpg`;
   const lastFrameField = `_${clipId}_back.jpg`;
   const subtitleField = `_${clipId}.vtt`;
-  const subtitleAssField = `_${clipId}.ass`;
   
   // Form alanlarını doldur
   ankiIdInput.value = clipId;
@@ -1307,7 +1309,6 @@ sendToAnkiBtn.addEventListener('click', () => {
   ankiFirstFrameInput.value = firstFrameField;
   ankiLastFrameInput.value = lastFrameField;
   ankiSubtitleInput.value = subtitleField;
-  ankiSubtitleAssInput.value = subtitleAssField;
   
   // Eski word ve diğer alanlar artık dinamik olarak yüklenecek
   
@@ -1320,16 +1321,6 @@ sendToAnkiBtn.addEventListener('click', () => {
   
   // Modal penceresini göster
   ankiCardModal.style.display = 'block';
-  
-  // Form alanlarına odaklanma sorununu çözmek için
-  // Kısa bir gecikme ile Content tabına geç
-  setTimeout(() => {
-    document.querySelector('.tab-button[data-tab="content-tab"]').click();
-    // Şimdi dinamik alanlar oluştuğundan spesifik bir input seçmek yerine
-    // Content tab'daki ilk input'a odaklanıyoruz
-    const firstInput = document.querySelector('#content-tab .form-group input');
-    if (firstInput) firstInput.focus();
-  }, 100);
 });
 
 // Anki'ye gönder
@@ -1391,7 +1382,7 @@ ankiSendBtn.addEventListener('click', async () => {
         embedSubtitles: appState.embedSubtitles,
         subtitleSource: {
           type: appState.subtitlePath ? 'external' : 'internal',
-          path: appState.subtitlePath,
+          path: appState.subtitlePath || null, // Yol yoksa null olarak gönder
           index: appState.currentSubtitleIndex
         }
       });

@@ -64,4 +64,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   addAnkiNote: (noteData) => ipcRenderer.invoke('add-anki-note', noteData),
   createClipForAnki: (args) => ipcRenderer.invoke('create-clip-for-anki', args),
   reloadAnkiData: () => ipcRenderer.invoke('reload-anki-data')
+});
+
+// Loglama işlevi
+contextBridge.exposeInMainWorld('logger', {
+  debug: (message) => ipcRenderer.invoke('log', {level: 'debug', message}),
+  info: (message) => ipcRenderer.invoke('log', {level: 'info', message}),
+  warn: (message) => ipcRenderer.invoke('log', {level: 'warn', message}),
+  error: (message) => ipcRenderer.invoke('log', {level: 'error', message})
 }); 
