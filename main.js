@@ -365,15 +365,22 @@ ipcMain.handle('create-clip-for-anki', async (event, args) => {
       
       // İlk kare
       if (extractFirstFrame) {
+        // Eğer altyazı gömme seçilmişse, oluşturulan klipten; seçilmemişse orijinal videodan frame çıkar
+        const sourceVideoForFrame = embedSubtitles ? clipFilePath : videoPath;
         frameExtractionPromises.push(
-          captureVideoFrame(videoPath, frontFramePath, startTime, 'first')
+          captureVideoFrame(sourceVideoForFrame, frontFramePath, embedSubtitles ? 0 : startTime, 'first')
         );
       }
       
       // Son kare
       if (extractLastFrame) {
+        // Eğer altyazı gömme seçilmişse, oluşturulan klipten; seçilmemişse orijinal videodan frame çıkar
+        const sourceVideoForFrame = embedSubtitles ? clipFilePath : videoPath;
+        // Altyazılı klip için, klip süresi hesaplanır (endTime - startTime)
+        // Klip 0'dan başladığı için son karenin zamanı (klip süresi - küçük bir değer) olmalı
+        const frameTime = embedSubtitles ? (endTime - startTime - 0.001) : endTime;
         frameExtractionPromises.push(
-          captureVideoFrame(videoPath, backFramePath, endTime, 'last')
+          captureVideoFrame(sourceVideoForFrame, backFramePath, frameTime, 'last')
         );
       }
       
@@ -544,15 +551,19 @@ async function captureVideoFrame(videoPath, outputPath, timestamp, framePosition
   return new Promise((resolve, reject) => {
     console.log(`Frame çıkarılıyor: ${framePosition}, zaman: ${timestamp}`);
     
+    // Windows'ta dosya yollarını FFmpeg için düzelt
+    const formattedVideoPath = videoPath.replace(/\\/g, '/');
+    const formattedOutputPath = outputPath.replace(/\\/g, '/');
+    
     // Komut ve argümanları hazırla
-    let ffmpegCommand = ffmpeg(videoPath);
+    let ffmpegCommand = ffmpeg(formattedVideoPath);
     
     if (framePosition === 'first') {
-      // İlk frame için genellikle tam başlangıç noktasını kullanıyoruz
+      // İlk frame için tam başlangıç noktasını kullanıyoruz
       ffmpegCommand
         .seekInput(timestamp)  // Belirtilen zamana git
         .frames(1)            // Sadece 1 frame al
-        .output(outputPath)
+        .output(formattedOutputPath)
         .outputOptions(['-q:v', '1']) // En yüksek kalitede JPEG
         .on('end', () => {
           console.log(`İlk frame başarıyla kaydedildi: ${outputPath}`);
@@ -563,14 +574,12 @@ async function captureVideoFrame(videoPath, outputPath, timestamp, framePosition
           reject(err);
         });
     } else if (framePosition === 'last') {
-      // Son frame için, belirtilen bitiş zamanından hemen önceki frame'i almaya çalışıyoruz
-      // Küçük bir mikrosaniye geri gidelim (ancak çok küçük olmalı)
-      const adjustedTime = Math.max(0, timestamp - 0.001); 
-      
+      // Son frame için, zaten caller tarafından hesaplanan timestamp'i kullanıyoruz
+      // Bu, orijinal video ya da klip olup olmadığına bağlı olarak farklı hesaplanıyor
       ffmpegCommand
-        .seekInput(adjustedTime)  // Son zamandan biraz önce
-        .frames(1)                // Sadece 1 frame al
-        .output(outputPath)
+        .seekInput(timestamp)  // Hesaplanan son zaman
+        .frames(1)            // Sadece 1 frame al
+        .output(formattedOutputPath)
         .outputOptions(['-q:v', '1']) // En yüksek kalitede JPEG
         .on('end', () => {
           console.log(`Son frame başarıyla kaydedildi: ${outputPath}`);
@@ -658,42 +667,62 @@ function createVideoClip(videoPath, startTime, endTime, outputPath, options = {}
         }
       }
       
-      // FFmpeg komutu
-      const ffmpegArgs = [
-        '-ss', startTime.toString(),
-        '-t', (endTime - startTime).toString(),
-        '-i', videoPath,
-        '-i', outputPath,
-        '-map', '0:v',
-        '-map', '0:a',
-        '-map', '1:0',
-        '-c:v', 'libvpx-vp9',
-        '-c:a', 'libopus',
-        '-c:s', 'webvtt',
-        outputPath
-      ];
+      // FFmpeg komutu - DÜZELTME: Önceki halinde çıktı dosyası ikinci input olarak ekleniyordu, bu bir hataydı
+      const ffmpegArgs = [];
       
-      // Altyazı gömme işlemi
+      // Altyazı gömme işlemi - input parametrelerini doğru sırada ekliyoruz
       if (options.embedSubtitles && options.subtitlePath) {
-        const formattedPath = options.subtitlePath.replace(/\\/g, '/').replace(/^([A-Z]):/, '$1\\:');
-        const subtitleFilter = `${scaleFilter},subtitles='${formattedPath}'`;
-        
-        // -vf parametresinin zaten eklenip eklenmediğini kontrol et
-        const vfIndex = ffmpegArgs.indexOf('-vf');
-        if (vfIndex !== -1) {
-          // Zaten varsa değiştir
-          ffmpegArgs[vfIndex + 1] = subtitleFilter;
-        } else {
-          // Yoksa ekle
-          ffmpegArgs.push('-vf', subtitleFilter);
+        try {
+          // Önce altyazı dosyasını ekle
+          const formattedVideoPath = videoPath.replace(/\\/g, '/');
+          const formattedSubPath = options.subtitlePath.replace(/\\/g, '/');
+          
+          // Altyazı dosyasının varlığını kontrol et
+          if (!fs.existsSync(options.subtitlePath)) {
+            console.error('Altyazı dosyası bulunamadı:', options.subtitlePath);
+            throw new Error('Subtitle file not found');
+          }
+
+          // Timeout ve input dosyaları
+          ffmpegArgs.push('-ss', startTime.toString());
+          ffmpegArgs.push('-t', (endTime - startTime).toString());
+          ffmpegArgs.push('-i', formattedVideoPath);
+          
+          // Windows'ta FFmpeg subtitles filtresi için kullanıcının verdiği çalışan formata göre düzenleme
+          // C: sürücü harfindeki : işaretini escape etmek ve path'i tek tırnak içine almak gerekiyor
+          // C: harfindeki : karakterini özel olarak escape et
+          const escapedPath = formattedSubPath.replace(/^([A-Z]):/, '$1\\:');
+          // Tam olarak çalışan formattaki gibi subtitles filtresini oluştur
+          const burnFilter = `${scaleFilter},subtitles='${escapedPath}'`;
+          ffmpegArgs.push('-vf', burnFilter);
+          
+          console.log('Altyazı gömme aktif, filtre:', burnFilter);
+          
+          // Codec parametreleri
+          ffmpegArgs.push('-c:v', 'libvpx-vp9');
+          ffmpegArgs.push('-c:a', 'libopus');
+        } catch (error) {
+          console.error('Altyazı parametreleri hazırlanırken hata:', error);
+          // Hata durumunda altyazısız devam et
+          ffmpegArgs.push('-ss', startTime.toString());
+          ffmpegArgs.push('-t', (endTime - startTime).toString());
+          ffmpegArgs.push('-i', videoPath.replace(/\\/g, '/'));
+          ffmpegArgs.push('-vf', scaleFilter);
+          ffmpegArgs.push('-c:v', 'libvpx-vp9');
+          ffmpegArgs.push('-c:a', 'libopus');
         }
       } else {
-        // Altyazı yoksa sadece scaling uygula
+        // Altyazı yoksa normal parametreler
+        ffmpegArgs.push('-ss', startTime.toString());
+        ffmpegArgs.push('-t', (endTime - startTime).toString());
+        ffmpegArgs.push('-i', videoPath.replace(/\\/g, '/'));
         ffmpegArgs.push('-vf', scaleFilter);
+        ffmpegArgs.push('-c:v', 'libvpx-vp9');
+        ffmpegArgs.push('-c:a', 'libopus');
       }
       
       // Çıktı dosyası ve overwrite parametresi
-      ffmpegArgs.push('-y', outputPath);
+      ffmpegArgs.push('-y', outputPath.replace(/\\/g, '/'));
       
       console.log('FFmpeg komutu:', 'ffmpeg', ffmpegArgs.join(' '));
       
@@ -739,6 +768,10 @@ function extractSubtitleClip(videoPath, startTime, endTime, outputPath, subtitle
     const outputBaseName = path.basename(outputPath, outputExt);
     const outputDir = path.dirname(outputPath);
     
+    // Windows'ta dosya yollarını FFmpeg için düzelt
+    const formattedVideoPath = videoPath.replace(/\\/g, '/');
+    const formattedOutputPath = outputPath.replace(/\\/g, '/');
+    
     // Sadece VTT formatında altyazı için argümanları hazırla
     let vttArgs;
     
@@ -748,27 +781,29 @@ function extractSubtitleClip(videoPath, startTime, endTime, outputPath, subtitle
       
       // Altyazı formatını kontrol et
       const subtitleFormat = path.extname(subtitleSource.path).toLowerCase();
+      const formattedSubtitlePath = subtitleSource.path.replace(/\\/g, '/');
       
       if (subtitleFormat === '.srt') {
         // SRT dosyasını doğrudan kullan
         vttArgs = [
           '-ss', startTime.toString(),
-          '-i', subtitleSource.path,
+          '-i', formattedSubtitlePath,
           '-t', (endTime - startTime).toString(),
           '-c:s', 'webvtt',
           '-y',
-          outputPath
+          formattedOutputPath
         ];
       } else if (subtitleFormat === '.ass' || subtitleFormat === '.ssa') {
         // ASS/SSA dosyasını önce SRT'ye, sonra VTT'ye dönüştür
         const tempSrtPath = outputPath.replace('.vtt', '_temp.srt');
+        const formattedTempSrtPath = tempSrtPath.replace(/\\/g, '/');
         
         const extractArgs = [
           '-ss', startTime.toString(),
           '-t', (endTime - startTime).toString(),
-          '-i', subtitleSource.path,
+          '-i', formattedSubtitlePath,
           '-map', '0:s:0',
-          tempSrtPath
+          formattedTempSrtPath
         ];
 
         const runFfmpegCommand = async (args) => {
@@ -779,10 +814,10 @@ function extractSubtitleClip(videoPath, startTime, endTime, outputPath, subtitle
         runFfmpegCommand(extractArgs)
           .then(() => {
             vttArgs = [
-              '-i', tempSrtPath,
+              '-i', formattedTempSrtPath,
               '-c:s', 'webvtt',
               '-y',
-              outputPath
+              formattedOutputPath
             ];
             resolve({ vtt: outputPath, ass: null });
           })
@@ -801,12 +836,12 @@ function extractSubtitleClip(videoPath, startTime, endTime, outputPath, subtitle
       
       vttArgs = [
         '-ss', startTime.toString(),
-        '-i', videoPath,
+        '-i', formattedVideoPath,
         '-t', (endTime - startTime).toString(),
         '-map', `0:s:${subtitleIndex}`,
         '-c:s', 'webvtt',
         '-y',
-        outputPath
+        formattedOutputPath
       ];
     }
     

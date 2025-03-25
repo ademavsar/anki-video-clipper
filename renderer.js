@@ -1398,13 +1398,27 @@ ankiSendBtn.addEventListener('click', async () => {
       }, 1000);
       
     } catch (error) {
+      // Hata mesajını düzenle - uzun FFmpeg hata mesajı yerine daha anlaşılır bir mesaj göster
+      let errorMessage = error.message;
+      
+      // FFmpeg hatalarını daha kısa ve anlaşılır hale getir
+      if (errorMessage.includes('FFmpeg')) {
+        errorMessage = 'Video işleme hatası oluştu. Lütfen tekrar deneyin.';
+      } else if (errorMessage.includes('No such file or directory')) {
+        errorMessage = 'Dosya bulunamadı. Lütfen tekrar deneyin.';
+      } else if (errorMessage.length > 100) {
+        // Uzun hata mesajlarını kısalt
+        errorMessage = errorMessage.substring(0, 100) + '...';
+      }
+      
       // Hata durumunu göster
-      showAnkiStatus('error', `Hata: ${error.message}`);
+      showAnkiStatus('error', `Hata: ${errorMessage}`);
       
       // Butonları tekrar aktif et
       ankiSendBtn.disabled = false;
       ankiCancelBtn.disabled = false;
       
+      // Orijinal hatayı konsola kaydet
       console.error('Anki\'ye gönderme hatası:', error);
     }
   } catch (error) {
@@ -2239,10 +2253,10 @@ function resetAnkiCardModal() {
   ankiSendBtn.disabled = false;
   ankiCancelBtn.disabled = false;
   
-  // Altyazı butonlarını varsayılan duruma getir
-  subtitleOffBtn.classList.add('active');
-  subtitleOnBtn.classList.remove('active');
-  appState.embedSubtitles = false;
+  // Altyazı butonlarını varsayılan duruma getir - "Embed Subtitles" seçeneği aktif olsun
+  subtitleOffBtn.classList.remove('active');
+  subtitleOnBtn.classList.add('active');
+  appState.embedSubtitles = true;
   
   // İlk sekmeyi aktif yap
   document.querySelectorAll('.tab-button').forEach(btn => {
