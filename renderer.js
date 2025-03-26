@@ -1957,16 +1957,26 @@ async function checkEmbeddedSubtitles(videoPath) {
     if (subtitles && subtitles.length > 0) {
       console.log(`${subtitles.length} embedded subtitles found`);
       
-      // Eğer harici altyazı seçilmemişse, dahili altyazıları göster
+      // Eğer harici altyazı seçilmemişse
       if (!appState.subtitlePath) {
-        showEmbeddedSubtitlesModal(videoPath, subtitles);
+        // Dahili altyazıları sakla
+        appState.embeddedSubtitles = subtitles;
+        
+        // Varsayılan olarak ilk altyazı akışını otomatik seç
+        await selectEmbeddedSubtitle(videoPath, subtitles[0].index);
+        
+        // Kullanıcıya başka altyazı seçenekleri olduğunu bildir
+        if (subtitles.length > 1) {
+          showNotification(`${subtitles.length} embedded subtitles found. You can switch them using the 'Embedded Subtitles' button.`);
+        } else {
+          showNotification(`Embedded subtitle loaded automatically.`);
+        }
       } else {
         // Harici altyazı zaten seçilmiş, sadece bilgi ver
         showNotification(`${subtitles.length} embedded subtitles found. You can access them from the video menu.`);
+        // Dahili altyazıları sakla
+        appState.embeddedSubtitles = subtitles;
       }
-      
-      // Dahili altyazıları sakla
-      appState.embeddedSubtitles = subtitles;
     } else {
       console.log('No embedded subtitles found');
     }
