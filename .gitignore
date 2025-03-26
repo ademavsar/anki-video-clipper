@@ -40,4 +40,5 @@ video_note_type/
 # Cursor editor related
 .cursor 
 
+anki_tool_v1.py
 anki_tool_v2.py
