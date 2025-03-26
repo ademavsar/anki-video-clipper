@@ -9,6 +9,9 @@ const subtitlePathDisplay = document.getElementById('subtitle-path');
 const subtitleList = document.getElementById('subtitle-list');
 const subtitleSearch = document.getElementById('subtitle-search');
 const clearSearchBtn = document.getElementById('clear-search-btn');
+const welcomeScreen = document.getElementById('welcome-screen');
+const welcomeSelectBtn = document.getElementById('welcome-select-btn');
+const welcomeContent = document.querySelector('.welcome-content');
 const startTimeInput = document.getElementById('start-time');
 const endTimeInput = document.getElementById('end-time');
 const startTimeUpBtn = document.getElementById('start-time-up');
@@ -195,6 +198,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Panel genişliklerini önce yükle (diğer işlemlerden önce)
   loadPanelWidths();
   
+  // Hoş geldiniz ekranını kontrol et
+  checkIfShouldShowWelcome();
+  
   // Diğer yüklemeleri yap
   // loadLastUsedFiles(); // Son kullanılan dosyaları hatırlama özelliği kapatıldı
   loadSubtitleSettings();
@@ -214,6 +220,99 @@ document.addEventListener('DOMContentLoaded', () => {
       renderTimeline();
     }
   });
+});
+
+// Hoş geldiniz ekranı işlevleri
+function hideWelcomeScreen() {
+  welcomeScreen.style.display = 'none';
+}
+
+function showWelcomeScreen() {
+  welcomeScreen.style.display = 'flex';
+}
+
+// Video ve altyazı yüklendiğinde hoş geldiniz ekranını gizle
+function checkIfShouldShowWelcome() {
+  if (appState.videoPath) {
+    hideWelcomeScreen();
+  } else {
+    showWelcomeScreen();
+  }
+}
+
+// Welcome Select butonu için olay dinleyicisi
+welcomeSelectBtn.addEventListener('click', () => {
+  selectMediaFilesBtn.click();
+});
+
+// Sürükle-bırak işlemleri için olay dinleyicileri
+welcomeScreen.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  welcomeContent.classList.add('drag-over');
+});
+
+welcomeScreen.addEventListener('dragleave', () => {
+  welcomeContent.classList.remove('drag-over');
+});
+
+welcomeScreen.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  welcomeContent.classList.remove('drag-over');
+  
+  const files = e.dataTransfer.files;
+  if (files.length === 0) return;
+  
+  // Elektron API'yi kullanarak dosyaları işle
+  const paths = Array.from(files).map(file => file.path);
+  
+  const videoExtensions = ['.mp4', '.mkv', '.webm', '.avi'];
+  const subtitleExtensions = ['.srt', '.ass', '.vtt'];
+  
+  let videoPath = null;
+  let subtitlePath = null;
+  
+  for (const filePath of paths) {
+    const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+    
+    if (videoExtensions.includes(ext) && !videoPath) {
+      videoPath = filePath;
+    } else if (subtitleExtensions.includes(ext) && !subtitlePath) {
+      subtitlePath = filePath;
+    }
+  }
+  
+  if (videoPath) {
+    appState.videoPath = videoPath;
+    videoPathDisplay.textContent = `Video: ${getFileName(videoPath)}`;
+    
+    try {
+      // Yükleme göstergesi göster
+      showLoadingIndicator("Video hazırlanıyor...");
+      
+      // Video oynatıcıya yükle
+      videoPlayer.src = `file://${videoPath}`;
+      
+      // Yükleme göstergesini gizle
+      hideLoadingIndicator();
+      
+      // Dahili altyazıları kontrol et
+      checkEmbeddedSubtitles(videoPath);
+    } catch (error) {
+      console.error("Video hazırlama hatası:", error);
+      hideLoadingIndicator();
+    }
+  }
+  
+  if (subtitlePath) {
+    appState.subtitlePath = subtitlePath;
+    subtitlePathDisplay.textContent = `Subtitles: ${getFileName(subtitlePath)}`;
+    
+    // Altyazıları yükle ve listele
+    await loadSubtitles(subtitlePath);
+  }
+  
+  // Hoş geldiniz ekranını gizle
+  checkIfShouldShowWelcome();
 });
 
 // Son kullanılan dosyaları localStorage'dan yükle
@@ -286,7 +385,7 @@ function saveLastUsedFiles(videoPath, subtitlePath) {
   */
 }
 
-// Video ve Altyazı seçme işlemi - yeni birleşik işlev
+// Video ve Altyazı seçme işlemi - güncellendi
 selectMediaFilesBtn.addEventListener('click', async () => {
   try {
     const result = await window.electronAPI.selectMediaFiles();
@@ -337,19 +436,13 @@ selectMediaFilesBtn.addEventListener('click', async () => {
       await loadSubtitles(result.subtitlePath);
     }
     
-    // Her iki dosya da seçildiyse ikisini birden kaydet
-    if (result.videoPath && result.subtitlePath) {
-      saveLastUsedFiles(result.videoPath, result.subtitlePath);
-    } else if (result.videoPath) {
-      saveLastUsedFiles(result.videoPath, null);
-    } else if (result.subtitlePath) {
-      saveLastUsedFiles(null, result.subtitlePath);
-    }
+    // Hoş geldiniz ekranını gizle eğer video yüklendiyse
+    checkIfShouldShowWelcome();
     
+    // Son kullanılan dosyaları kaydet - özellik şu an kapalı
+    // saveLastUsedFiles(appState.videoPath, appState.subtitlePath);
   } catch (error) {
-    console.error('File selection error:', error);
-    alert('An error occurred while selecting files. Please try again.');
-    hideLoadingIndicator();
+    console.error('Error selecting media files:', error);
   }
 });
 
@@ -1642,8 +1735,20 @@ function showNotification(message) {
 }
 
 // Yardımcı fonksiyonlar
-function getFileName(path) {
-  return path.split('\\').pop().split('/').pop();
+function getFileName(filePath) {
+  if (!filePath) return "Not Selected";
+  
+  // Dosya yolundan sadece adını ayıkla
+  const fileName = filePath.split('\\').pop().split('/').pop();
+  
+  // Dosya adı çok uzunsa kısalt
+  if (fileName.length > 30) {
+    const extension = fileName.slice(fileName.lastIndexOf('.'));
+    const baseName = fileName.slice(0, fileName.lastIndexOf('.'));
+    return baseName.slice(0, 25) + '...' + extension;
+  }
+  
+  return fileName;
 }
 
 // Standart zaman formatı (Altyazı listesi için)

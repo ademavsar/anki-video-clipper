@@ -90,26 +90,131 @@ body {
   background-color: #000;
 }
 
-.video-controls {
+/* Hoş Geldiniz Ekranı */
+.welcome-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.welcome-content {
+  text-align: center;
+  padding: 30px;
+  max-width: 500px;
+  border-radius: 8px;
+  background-color: rgba(45, 45, 45, 0.8);
+  border: 2px dashed #555;
+  transition: all 0.3s ease;
+}
+
+.welcome-content.drag-over {
+  background-color: rgba(0, 120, 215, 0.2);
+  border-color: #0078d7;
+}
+
+.welcome-content h2 {
+  margin-bottom: 20px;
+  color: #0078d7;
+}
+
+.welcome-content p {
+  margin: 10px 0;
+  color: #ccc;
+}
+
+#welcome-select-btn {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background-color: #0078d7;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+#welcome-select-btn:hover {
+  background-color: #0063b1;
+}
+
+/* Video Bilgi Çubuğu - Yeni */
+.video-info-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.7);
   padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: opacity 0.3s ease;
+  opacity: 0;
+  z-index: 100;
+}
+
+.video-container:hover .video-info-bar {
+  opacity: 1;
+}
+
+.video-info-bar .file-info {
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  color: #ccc;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+  gap: 5px;
+}
+
+.video-info-bar .file-info span {
+  display: flex;
+  align-items: center;
+}
+
+.video-info-bar .file-info span::before {
+  margin-right: 8px;
+  font-family: 'Font Awesome 5 Free';
+  font-weight: 900;
+}
+
+#video-path::before {
+  content: "\f008"; /* video ikon kodu */
+  color: #ff9800;
+}
+
+#subtitle-path::before {
+  content: "\f075"; /* altyazı ikon kodu */
+  color: #4fc3f7;
+}
+
+.video-controls {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  background-color: #333;
+  justify-content: flex-end;
 }
 
 .video-controls button {
   padding: 8px 15px;
-  background-color: #0078d7;
+  background-color: rgba(0, 120, 215, 0.8);
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
+  transition: background-color 0.2s ease;
 }
 
 .video-controls button:hover {
-  background-color: #0063b1;
+  background-color: rgba(0, 99, 177, 0.9);
 }
 
 .file-info {

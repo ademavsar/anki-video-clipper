@@ -13,14 +13,24 @@
       <div class="video-container">
         <video id="video-player" controls></video>
         <div id="video-subtitle" class="video-subtitle"></div>
-        <div class="video-controls">
-          <button id="select-video-btn">Select Video & Subtitles</button>
-          <button id="subtitle-settings-btn">Subtitle Settings</button>
-          <button id="embedded-subtitles-btn">Embedded Subtitles</button>
-          <button id="select-subtitle-btn" style="display: none;">Select Subtitles</button>
+        <div id="welcome-screen" class="welcome-screen">
+          <div class="welcome-content">
+            <h2>Anki Video Clipper</h2>
+            <p>Video ve altyazı dosyalarını bu alana sürükleyip bırakın</p>
+            <p>veya</p>
+            <button id="welcome-select-btn">Dosyaları Seç</button>
+          </div>
+        </div>
+        <div class="video-info-bar">
           <div class="file-info">
             <span id="video-path">Video: Not Selected</span>
             <span id="subtitle-path">Subtitles: Not Selected</span>
+          </div>
+          <div class="video-controls">
+            <button id="select-video-btn">Select Video & Subtitles</button>
+            <button id="subtitle-settings-btn">Subtitle Settings</button>
+            <button id="embedded-subtitles-btn">Embedded Subtitles</button>
+            <button id="select-subtitle-btn" style="display: none;">Select Subtitles</button>
           </div>
         </div>
       </div>
