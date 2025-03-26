@@ -758,7 +758,7 @@ function renderSubtitleList(searchTerm = '') {
     
     const timeSpan = document.createElement('span');
     timeSpan.className = 'subtitle-time';
-    timeSpan.textContent = `${formatTime(subtitle.startTime)} - ${formatTime(subtitle.endTime)}`;
+    timeSpan.textContent = `${formatTimeWithMs(subtitle.startTime)} - ${formatTimeWithMs(subtitle.endTime)}`;
     
     const textSpan = document.createElement('span');
     textSpan.className = 'subtitle-text';
@@ -899,7 +899,7 @@ function renderTimeline() {
       // Zaman etiketi ekle
       const timeLabel = document.createElement('div');
       timeLabel.className = 'timeline-label';
-      timeLabel.textContent = formatTime(time);
+      timeLabel.textContent = formatTimeWithMs(time);
       timeLabel.style.position = 'absolute';
       timeLabel.style.bottom = '-20px';
       timeLabel.style.left = '50%';
@@ -946,7 +946,7 @@ function renderTimeline() {
     segmentElement.style.alignItems = 'center'; // Dikey ortala
     segmentElement.style.padding = '0 4px'; // Yatay dolgu ekle
     segmentElement.setAttribute('data-index', appState.subtitles.indexOf(subtitle));
-    segmentElement.setAttribute('title', `${formatTime(subtitle.startTime)} - ${formatTime(subtitle.endTime)}: ${subtitle.text}`);
+    segmentElement.setAttribute('title', `${formatTimeWithMs(subtitle.startTime)} - ${formatTimeWithMs(subtitle.endTime)}: ${subtitle.text}`);
     
     // Altyazı metni önizlemesi ekle
     const textPreview = document.createElement('span');
