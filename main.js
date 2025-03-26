@@ -714,7 +714,7 @@ function createVideoClip(videoPath, startTime, endTime, outputPath, options = {}
         const ffmpegArgs = [
           '-ss', startTime.toString(),
           '-i', videoPath.replace(/\\/g, '/'),
-          '-t', (endTime - startTime).toString(), // Tam olarak istenen süre
+          '-t', (endTime - startTime).toString(),
           '-threads', '0',
           '-vf', scaleFilter,
           '-c:v', 'libvpx-vp9',
@@ -905,7 +905,7 @@ async function embedAlignedSubtitles(videoPath, startTime, duration, outputPath,
               
               // Son altyazının bitiş zamanını, video süresine eşitle
               // Video süresine +0.2 saniye ekleyerek, tam video sonuna kadar göster
-              const endTime = formatTime(Math.min(videoEndTime + 0.2, videoEndTime));
+              const endTime = formatTime(videoEndTime + 0.5);
               
               // Yeni zaman çizgisini oluştur
               lines[timelineIndex] = `${startTime} --> ${endTime}`;
