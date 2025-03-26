@@ -1789,16 +1789,9 @@ function getFileName(filePath) {
   if (!filePath) return "Not Selected";
   
   // Dosya yolundan sadece adını ayıkla
-  const fileName = filePath.split('\\').pop().split('/').pop();
+  return filePath.split('\\').pop().split('/').pop();
   
-  // Dosya adı çok uzunsa kısalt
-  if (fileName.length > 30) {
-    const extension = fileName.slice(fileName.lastIndexOf('.'));
-    const baseName = fileName.slice(0, fileName.lastIndexOf('.'));
-    return baseName.slice(0, 25) + '...' + extension;
-  }
-  
-  return fileName;
+  // NOT: Dosya adı kısaltma işlemi kaldırıldı - tam dosya adları görüntüleniyor
 }
 
 // Standart zaman formatı (Altyazı listesi için)
