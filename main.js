@@ -713,9 +713,9 @@ function createVideoClip(videoPath, startTime, endTime, outputPath, options = {}
       function createClipWithoutSubtitles() {
         const ffmpegArgs = [
           '-ss', startTime.toString(),
-          '-t', (endTime - startTime).toString(),
           '-i', videoPath.replace(/\\/g, '/'),
-          '-threads', '0',  // Maksimum CPU çekirdeği kullanımı
+          '-t', (endTime - startTime).toString(), // Tam olarak istenen süre
+          '-threads', '0',
           '-vf', scaleFilter,
           '-c:v', 'libvpx-vp9',
           '-c:a', 'libopus',
@@ -807,7 +807,15 @@ async function embedAlignedSubtitles(videoPath, startTime, duration, outputPath,
         
         // Altyazıları böl ve işle
         const blocks = normalizedContent.split('\n\n');
-        const adjustedBlocks = blocks.map(block => {
+        
+        // Son altyazının bitiş zamanını video süresine eşitlemek için
+        // klibin toplam süresini kullanacağız
+        const videoEndTime = duration; // saniye cinsinden
+        
+        // Son non-null altyazıyı takip etmek için değişken
+        let lastValidSubtitleIndex = -1;
+        
+        const adjustedBlocks = blocks.map((block, blockIndex) => {
           const lines = block.split('\n');
           
           // Altyazı numarası ve metin satırlarını koru
@@ -847,6 +855,9 @@ async function embedAlignedSubtitles(videoPath, startTime, duration, outputPath,
           // Eğer her iki zaman da negatifse, bu altyazı klip dışında demektir
           if (adjustedEndTime <= 0) return null;
           
+          // Geçerli bir altyazı bulduk, indeksi güncelle
+          lastValidSubtitleIndex = blockIndex;
+          
           // Zamanları tekrar timecode formatına dönüştür
           const formatTime = (seconds) => {
             const h = Math.floor(seconds / 3600);
@@ -863,6 +874,50 @@ async function embedAlignedSubtitles(videoPath, startTime, duration, outputPath,
           return lines.join('\n');
         }).filter(Boolean); // null değerleri kaldır
         
+        // Şimdi son altyazının süresini uzatmak için, video süresini kullan
+        if (lastValidSubtitleIndex >= 0 && adjustedBlocks.length > 0) {
+          const lastSubtitleBlock = adjustedBlocks[adjustedBlocks.length - 1];
+          const lines = lastSubtitleBlock.split('\n');
+          
+          // Zaman çizgisini bul
+          const timelineIndex = lines.findIndex(line => 
+            line.match(/\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}/)
+          );
+          
+          if (timelineIndex !== -1) {
+            // Zaman çizgisini ayrıştır
+            const timeMatch = lines[timelineIndex].match(
+              /(\d{2}):(\d{2}):(\d{2}),(\d{3}) --> (\d{2}):(\d{2}):(\d{2}),(\d{3})/
+            );
+            
+            if (timeMatch) {
+              // Başlangıç zamanını koru, bitiş zamanını video süresine ayarla
+              const startTime = `${timeMatch[1]}:${timeMatch[2]}:${timeMatch[3]},${timeMatch[4]}`;
+              
+              // Video süresini kullanarak yeni bitiş zamanını oluştur
+              const formatTime = (seconds) => {
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                const s = Math.floor(seconds % 60);
+                const ms = Math.floor((seconds % 1) * 1000);
+                return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
+              };
+              
+              // Son altyazının bitiş zamanını, video süresine eşitle
+              // Video süresine +0.2 saniye ekleyerek, tam video sonuna kadar göster
+              const endTime = formatTime(Math.min(videoEndTime + 0.2, videoEndTime));
+              
+              // Yeni zaman çizgisini oluştur
+              lines[timelineIndex] = `${startTime} --> ${endTime}`;
+              
+              // Düzeltilmiş bloğu güncelle
+              adjustedBlocks[adjustedBlocks.length - 1] = lines.join('\n');
+              
+              console.log(`Son altyazının bitiş zamanı video süresine uyarlandı: ${endTime}`);
+            }
+          }
+        }
+        
         // Yeni dosyaya yaz
         fs.writeFileSync(adjustedSubPath, adjustedBlocks.join('\n\n'));
         console.log('Altyazı zamanları başarıyla ayarlandı:', adjustedSubPath);
@@ -876,7 +931,7 @@ async function embedAlignedSubtitles(videoPath, startTime, duration, outputPath,
     // ADIM 3: Videoyu düzeltilmiş altyazılarla burn et
     await new Promise((resolve, reject) => {
       // Windows'ta FFmpeg subtitles filtresi için güvenilir format
-      const burnCommand = `ffmpeg -ss ${startTime} -t ${duration} -i "${videoPath}" -threads 0 -vf "${scaleFilter},subtitles=${adjustedSubPath.replace(/\\/g, '/').replace(/:/g, '\\\\:')}" -c:v libvpx-vp9 -c:a libopus -y "${outputPath}"`;
+      const burnCommand = `ffmpeg -ss ${startTime} -i "${videoPath}" -t ${duration} -threads 0 -vf "${scaleFilter},subtitles=${adjustedSubPath.replace(/\\/g, '/').replace(/:/g, '\\\\:')}" -c:v libvpx-vp9 -c:a libopus -y "${outputPath}"`;
       
       const { exec } = require('child_process');
       console.log('Komut: ', burnCommand);
