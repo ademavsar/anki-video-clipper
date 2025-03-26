@@ -804,8 +804,8 @@ body {
 #video-subtitle {
   position: absolute;
   bottom: 30px;
-  left: 0;
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   text-align: center;
   color: white;
   font-size: 22px;
@@ -815,7 +815,8 @@ body {
   background-color: rgba(0, 0, 0, 0.7);
   text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
   z-index: 20;
-  max-width: 80%;
+  width: auto;
+  display: inline-block;
   margin: 0 auto;
   border-radius: 2px;
   transition: top 0.3s;
@@ -1009,9 +1010,20 @@ body {
   font-size: 18px;
   border-radius: 4px;
   min-height: 50px;
+  display: inline-block;
+  width: auto;
+  max-width: 80%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Altyazı önizleme container */
+.settings-group:last-child {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .timeline-btn-group .timeline-btn-active {
