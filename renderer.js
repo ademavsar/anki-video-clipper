@@ -969,6 +969,7 @@ function selectSubtitleForClip(index) {
   
   // Seçilen altyazı indeksini ve süreleri güncelle
   appState.currentSubtitleIndex = index;
+  appState.originalCenterIndex = index; // Merkez referans indeksi olarak kaydet
   const subtitle = appState.subtitles[index];
   
   // Başlangıç ve bitiş indekslerini seçilen altyazı için ayarla
@@ -977,6 +978,7 @@ function selectSubtitleForClip(index) {
   
   console.log('Ayarlanan değerler:');
   console.log('appState.currentSubtitleIndex:', appState.currentSubtitleIndex);
+  console.log('appState.originalCenterIndex:', appState.originalCenterIndex);
   console.log('appState.selectedStartIndex:', appState.selectedStartIndex);
   console.log('appState.selectedEndIndex:', appState.selectedEndIndex);
   
@@ -1019,23 +1021,43 @@ function selectSubtitleForClip(index) {
   console.log('selectSubtitleForClip - Tamamlandı');
 }
 
-// Önceki sahne ekleme butonu
+// Önceki sahne ekleme butonu - tamamen yeniden yazıldı
 prevSceneAddBtn.addEventListener('click', () => {
-  // Mevcut altyazı indeksi 
-  const currentIndex = appState.currentSubtitleIndex;
+  console.log('----------- ÖNCEKI SAHNE EKLEME TIKLANDI -----------');
   
-  // Altyazı dizisi kontrolü
-  if (currentIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
+  // Sahne işlemi bayrağını ayarla ve mevcut indeksi kaydet
+  isSceneOperation = true;
+  savedCurrentSubtitleIndex = appState.currentSubtitleIndex;
+  
+  console.log('İŞLEM ÖNCESİ DURUM:');
+  console.log('> currentSubtitleIndex (Kaydedilen):', savedCurrentSubtitleIndex);
+  console.log('> originalCenterIndex:', appState.originalCenterIndex);
+  console.log('> selectedStartIndex:', appState.selectedStartIndex);
+  console.log('> selectedEndIndex:', appState.selectedEndIndex);
+  
+  // Merkez referans indeksini kullan
+  const centerIndex = appState.originalCenterIndex !== undefined ? appState.originalCenterIndex : savedCurrentSubtitleIndex;
+  
+  if (centerIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
+    console.log('İŞLEM İPTAL: Geçerli altyazı bulunamadı');
+    isSceneOperation = false;
     return;
   }
   
-  // Kullanıcının seçtiği indeksi takip ediyoruz (start)
-  let startIndex = appState.selectedStartIndex || currentIndex;
+  // Başlangıç indeksi - eğer tanımlanmamışsa merkez indeksi kullan
+  let startIndex = appState.selectedStartIndex !== undefined ? appState.selectedStartIndex : centerIndex;
+  console.log('> Kullanılan başlangıç indeksi:', startIndex);
   
-  // Eğer önceki bir sahne varsa
+  // Eğer ilk altyazıya ulaşmadıysak önceki sahneyi ekleyebiliriz
   if (startIndex > 0) {
-    // Bir önceki sahneyi ekleyerek başlangıç indeksimizi güncelliyoruz
+    // İşlemden önce mevcut sahne bilgilerini kaydet
+    const oldStartText = appState.subtitles[startIndex].text;
+    
+    // Bir önceki sahneyi ekle
     startIndex -= 1;
+    
+    // Yeni sahne bilgilerini al
+    const newStartText = appState.subtitles[startIndex].text;
     
     // Yeni başlangıç zamanını güncelle
     startTimeInput.value = formatTimeWithMs(appState.subtitles[startIndex].startTime);
@@ -1043,84 +1065,133 @@ prevSceneAddBtn.addEventListener('click', () => {
     // Altyazı indeksini kaydet
     appState.selectedStartIndex = startIndex;
     
-    // Videoyu yeni başlangıç noktasına getir
-    videoPlayer.currentTime = appState.subtitles[startIndex].startTime;
+    // İndekslerin değişmediğinden emin ol
+    appState.currentSubtitleIndex = savedCurrentSubtitleIndex;
     
-    // Timeline güncellemesi
+    // Timeline ve buton durumlarını güncelle
     renderTimeline();
-    
-    // Butonların durumunu güncelle
     updateButtonStates();
+    updateSubtitlePreview(); // Altyazı önizlemesini güncelle
+    
+    console.log('İŞLEM SONRASI DURUM:');
+    console.log('> Önceki sahne eklendi - ESKİ metin:', oldStartText);
+    console.log('> Önceki sahne eklendi - YENİ metin:', newStartText);
+    console.log('> Yeni başlangıç indeksi:', startIndex);
+    console.log('> currentSubtitleIndex (Korunan):', appState.currentSubtitleIndex);
+    console.log('> originalCenterIndex:', appState.originalCenterIndex);
+    console.log('> Referans merkez sahne indeksi sabit kalmalı:', centerIndex);
+  } else {
+    console.log('İŞLEM İPTAL: Daha önceki sahne yok (indeks 0\'a ulaşıldı)');
   }
+  
+  isSceneOperation = false;
+  console.log('----------- ÖNCEKI SAHNE EKLEME TAMAMLANDI -----------');
 });
 
-// Önceki sahne çıkarma butonu
+// Önceki sahne çıkarma butonu - tamamen yeniden yazıldı
 prevSceneRemoveBtn.addEventListener('click', () => {
-  // Mevcut altyazı indeksi
-  const currentIndex = appState.currentSubtitleIndex;
+  console.log('----------- ÖNCEKI SAHNE ÇIKARMA TIKLANDI -----------');
   
-  // Altyazı dizisi kontrolü
-  if (currentIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
+  // Sahne işlemi bayrağını ayarla ve mevcut indeksi kaydet
+  isSceneOperation = true;
+  savedCurrentSubtitleIndex = appState.currentSubtitleIndex;
+  
+  console.log('İŞLEM ÖNCESİ DURUM:');
+  console.log('> currentSubtitleIndex (Kaydedilen):', savedCurrentSubtitleIndex);
+  console.log('> originalCenterIndex:', appState.originalCenterIndex);
+  console.log('> selectedStartIndex:', appState.selectedStartIndex);
+  console.log('> selectedEndIndex:', appState.selectedEndIndex);
+  
+  // Merkez referans indeksini kullan
+  const centerIndex = appState.originalCenterIndex !== undefined ? appState.originalCenterIndex : savedCurrentSubtitleIndex;
+  
+  if (centerIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
+    console.log('İŞLEM İPTAL: Geçerli altyazı bulunamadı');
+    isSceneOperation = false;
     return;
   }
   
-  // Kullanıcının seçtiği indeksleri takip ediyoruz
-  let startIndex = appState.selectedStartIndex || currentIndex;
+  // Başlangıç indeksi - eğer tanımlanmamışsa merkez indeksi kullan
+  let startIndex = appState.selectedStartIndex !== undefined ? appState.selectedStartIndex : centerIndex;
+  console.log('> Kullanılan başlangıç indeksi:', startIndex);
   
-  // Konsola değerleri yazdır (debug için)
-  console.log('Remove Previous Scene - Değişken durumları:');
-  console.log('currentIndex:', currentIndex);
-  console.log('startIndex:', startIndex);
-  console.log('appState.selectedStartIndex:', appState.selectedStartIndex);
-  
-  // Eğer başlangıç indeksimiz merkez referans sahnemizden küçükse
-  // (yani önceki sahneler eklenmişse)
-  if (startIndex < currentIndex) {
+  // Eğer başlangıç indeksi merkez indeksten küçükse (yani önceki sahneler eklenmiş)
+  if (startIndex < centerIndex) {
+    // İşlemden önce mevcut sahne bilgilerini kaydet
+    const oldStartText = appState.subtitles[startIndex].text;
+    
     // En son eklenen önceki sahneyi çıkar
     startIndex += 1;
     
+    // Yeni sahne bilgilerini al
+    const newStartText = appState.subtitles[startIndex].text;
+    
     // Yeni başlangıç zamanını güncelle
     startTimeInput.value = formatTimeWithMs(appState.subtitles[startIndex].startTime);
     
     // Altyazı indeksini kaydet
     appState.selectedStartIndex = startIndex;
     
-    // Videoyu yeni başlangıç noktasına getir
-    videoPlayer.currentTime = appState.subtitles[startIndex].startTime;
+    // İndekslerin değişmediğinden emin ol
+    appState.currentSubtitleIndex = savedCurrentSubtitleIndex;
     
-    // Timeline güncellemesi
+    // Timeline ve buton durumlarını güncelle
     renderTimeline();
-    
-    // Butonların durumunu güncelle
     updateButtonStates();
+    updateSubtitlePreview(); // Altyazı önizlemesini güncelle
     
-    // İşlemden sonra konsola değerleri yazdır (debug için)
-    console.log('Remove Previous Scene - İşlem sonrası:');
-    console.log('startIndex (güncellendi):', startIndex);
-    console.log('appState.selectedStartIndex (güncellendi):', appState.selectedStartIndex);
+    console.log('İŞLEM SONRASI DURUM:');
+    console.log('> Önceki sahne çıkarıldı - ESKİ metin:', oldStartText);
+    console.log('> Önceki sahne çıkarıldı - YENİ metin:', newStartText);
+    console.log('> Yeni başlangıç indeksi:', startIndex);
+    console.log('> currentSubtitleIndex (Korunan):', appState.currentSubtitleIndex);
+    console.log('> originalCenterIndex:', appState.originalCenterIndex);
+    console.log('> Referans merkez sahne indeksi sabit kalmalı:', centerIndex);
   } else {
-    console.log('Önceki sahne yok, işlem yapılmadı');
+    console.log('İŞLEM İPTAL: Çıkarılacak önceki sahne yok');
   }
+  
+  isSceneOperation = false;
+  console.log('----------- ÖNCEKI SAHNE ÇIKARMA TAMAMLANDI -----------');
 });
 
-// Sonraki sahne ekleme butonu
+// Sonraki sahne ekleme butonu - tamamen yeniden yazıldı
 nextSceneAddBtn.addEventListener('click', () => {
-  // Mevcut altyazı indeksi
-  const currentIndex = appState.currentSubtitleIndex;
+  console.log('----------- SONRAKI SAHNE EKLEME TIKLANDI -----------');
   
-  // Altyazı dizisi kontrolü
-  if (currentIndex === -1 || !appState.subtitles || appState.subtitles.length === 0 || 
-      currentIndex >= appState.subtitles.length - 1) {
+  // Sahne işlemi bayrağını ayarla ve mevcut indeksi kaydet
+  isSceneOperation = true;
+  savedCurrentSubtitleIndex = appState.currentSubtitleIndex;
+  
+  console.log('İŞLEM ÖNCESİ DURUM:');
+  console.log('> currentSubtitleIndex (Kaydedilen):', savedCurrentSubtitleIndex);
+  console.log('> originalCenterIndex:', appState.originalCenterIndex);
+  console.log('> selectedStartIndex:', appState.selectedStartIndex);
+  console.log('> selectedEndIndex:', appState.selectedEndIndex);
+  
+  // Merkez referans indeksini kullan
+  const centerIndex = appState.originalCenterIndex !== undefined ? appState.originalCenterIndex : savedCurrentSubtitleIndex;
+  
+  if (centerIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
+    console.log('İŞLEM İPTAL: Geçerli altyazı bulunamadı');
+    isSceneOperation = false;
     return;
   }
   
-  // Kullanıcının seçtiği indeksi takip ediyoruz (end)
-  let endIndex = appState.selectedEndIndex || currentIndex;
+  // Bitiş indeksi - eğer tanımlanmamışsa merkez indeksi kullan
+  let endIndex = appState.selectedEndIndex !== undefined ? appState.selectedEndIndex : centerIndex;
+  console.log('> Kullanılan bitiş indeksi:', endIndex);
   
-  // Eğer sonraki bir sahne varsa
+  // Eğer son altyazıya ulaşmadıysak sonraki sahneyi ekleyebiliriz
   if (endIndex < appState.subtitles.length - 1) {
-    // Bir sonraki sahneyi ekleyerek bitiş indeksimizi güncelliyoruz
+    // İşlemden önce mevcut sahne bilgilerini kaydet
+    const oldEndText = appState.subtitles[endIndex].text;
+    
+    // Bir sonraki sahneyi ekle
     endIndex += 1;
+    
+    // Yeni sahne bilgilerini al
+    const newEndText = appState.subtitles[endIndex].text;
     
     // Yeni bitiş zamanını güncelle
     endTimeInput.value = formatTimeWithMs(appState.subtitles[endIndex].endTime);
@@ -1128,123 +1199,176 @@ nextSceneAddBtn.addEventListener('click', () => {
     // Altyazı indeksini kaydet
     appState.selectedEndIndex = endIndex;
     
-    // Timeline güncellemesi
-    renderTimeline();
+    // İndekslerin değişmediğinden emin ol
+    appState.currentSubtitleIndex = savedCurrentSubtitleIndex;
     
-    // Butonların durumunu güncelle
+    // Timeline ve buton durumlarını güncelle
+    renderTimeline();
     updateButtonStates();
+    updateSubtitlePreview(); // Altyazı önizlemesini güncelle
+    
+    console.log('İŞLEM SONRASI DURUM:');
+    console.log('> Sonraki sahne eklendi - ESKİ metin:', oldEndText);
+    console.log('> Sonraki sahne eklendi - YENİ metin:', newEndText);
+    console.log('> Yeni bitiş indeksi:', endIndex);
+    console.log('> currentSubtitleIndex (Korunan):', appState.currentSubtitleIndex);
+    console.log('> originalCenterIndex:', appState.originalCenterIndex);
+    console.log('> Referans merkez sahne indeksi sabit kalmalı:', centerIndex);
+  } else {
+    console.log('İŞLEM İPTAL: Daha sonraki sahne yok (son indekse ulaşıldı)');
   }
+  
+  isSceneOperation = false;
+  console.log('----------- SONRAKI SAHNE EKLEME TAMAMLANDI -----------');
 });
 
-// Sonraki sahne çıkarma butonu
+// Sonraki sahne çıkarma butonu - tamamen yeniden yazıldı
 nextSceneRemoveBtn.addEventListener('click', () => {
-  // Mevcut altyazı indeksi
-  const currentIndex = appState.currentSubtitleIndex;
+  console.log('----------- SONRAKI SAHNE ÇIKARMA TIKLANDI -----------');
   
-  // Altyazı dizisi kontrolü
-  if (currentIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
+  // Sahne işlemi bayrağını ayarla ve mevcut indeksi kaydet
+  isSceneOperation = true;
+  savedCurrentSubtitleIndex = appState.currentSubtitleIndex;
+  
+  console.log('İŞLEM ÖNCESİ DURUM:');
+  console.log('> currentSubtitleIndex (Kaydedilen):', savedCurrentSubtitleIndex);
+  console.log('> originalCenterIndex:', appState.originalCenterIndex);
+  console.log('> selectedStartIndex:', appState.selectedStartIndex);
+  console.log('> selectedEndIndex:', appState.selectedEndIndex);
+  
+  // Merkez referans indeksini kullan
+  const centerIndex = appState.originalCenterIndex !== undefined ? appState.originalCenterIndex : savedCurrentSubtitleIndex;
+  
+  if (centerIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
+    console.log('İŞLEM İPTAL: Geçerli altyazı bulunamadı');
+    isSceneOperation = false;
     return;
   }
   
-  // Kullanıcının seçtiği indeksleri takip ediyoruz
-  let startIndex = appState.selectedStartIndex || currentIndex;
-  let endIndex = appState.selectedEndIndex || currentIndex;
+  // Bitiş indeksi - eğer tanımlanmamışsa merkez indeksi kullan
+  let endIndex = appState.selectedEndIndex !== undefined ? appState.selectedEndIndex : centerIndex;
+  console.log('> Kullanılan bitiş indeksi:', endIndex);
   
-  // Eğer bitiş indeksimiz merkez referans sahnemizden büyükse
-  // (yani sonraki sahneler eklenmişse)
-  if (endIndex > currentIndex) {
+  // Eğer bitiş indeksi merkez indeksten büyükse (yani sonraki sahneler eklenmiş)
+  if (endIndex > centerIndex) {
+    // İşlemden önce mevcut sahne bilgilerini kaydet
+    const oldEndText = appState.subtitles[endIndex].text;
+    
     // En son eklenen sonraki sahneyi çıkar
     endIndex -= 1;
     
+    // Yeni sahne bilgilerini al
+    const newEndText = appState.subtitles[endIndex].text;
+    
     // Yeni bitiş zamanını güncelle
     endTimeInput.value = formatTimeWithMs(appState.subtitles[endIndex].endTime);
     
     // Altyazı indeksini kaydet
     appState.selectedEndIndex = endIndex;
     
-    // Timeline güncellemesi
-    renderTimeline();
+    // İndekslerin değişmediğinden emin ol
+    appState.currentSubtitleIndex = savedCurrentSubtitleIndex;
     
-    // Butonların durumunu güncelle
+    // Timeline ve buton durumlarını güncelle
+    renderTimeline();
     updateButtonStates();
+    updateSubtitlePreview(); // Altyazı önizlemesini güncelle
+    
+    console.log('İŞLEM SONRASI DURUM:');
+    console.log('> Sonraki sahne çıkarıldı - ESKİ metin:', oldEndText);
+    console.log('> Sonraki sahne çıkarıldı - YENİ metin:', newEndText);
+    console.log('> Yeni bitiş indeksi:', endIndex);
+    console.log('> currentSubtitleIndex (Korunan):', appState.currentSubtitleIndex);
+    console.log('> originalCenterIndex:', appState.originalCenterIndex);
+    console.log('> Referans merkez sahne indeksi sabit kalmalı:', centerIndex);
+  } else {
+    console.log('İŞLEM İPTAL: Çıkarılacak sonraki sahne yok');
   }
+  
+  isSceneOperation = false;
+  console.log('----------- SONRAKI SAHNE ÇIKARMA TAMAMLANDI -----------');
 });
 
 // Butonların durumunu güncelleme
 function updateButtonStates() {
+  const currentStartTime = parseTimeToSeconds(startTimeInput.value);
+  const currentEndTime = parseTimeToSeconds(endTimeInput.value);
   const currentIndex = appState.currentSubtitleIndex;
+  const centerIndex = appState.originalCenterIndex !== undefined ? appState.originalCenterIndex : currentIndex;
   
-  console.log('updateButtonStates - Başlangıç:');
-  console.log('currentIndex:', currentIndex);
-  console.log('appState.selectedStartIndex:', appState.selectedStartIndex);
-  console.log('appState.selectedEndIndex:', appState.selectedEndIndex);
+  if (currentIndex === -1) return;
   
-  if (currentIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
-    prevSceneAddBtn.disabled = true;
-    prevSceneRemoveBtn.disabled = true;
-    nextSceneAddBtn.disabled = true;
-    nextSceneRemoveBtn.disabled = true;
-    prevSceneAddBtn.classList.add('disabled');
-    prevSceneRemoveBtn.classList.add('disabled');
-    nextSceneAddBtn.classList.add('disabled');
-    nextSceneRemoveBtn.classList.add('disabled');
-    console.log('İşlem yapılmadı: Geçerli altyazı yok');
-    return;
-  }
+  const currentSubtitle = appState.subtitles[currentIndex];
+  const centerSubtitle = appState.subtitles[centerIndex];
   
-  // Kullanıcının seçtiği indeksleri takip ediyoruz
-  const startIndex = appState.selectedStartIndex !== undefined ? appState.selectedStartIndex : currentIndex;
-  const endIndex = appState.selectedEndIndex !== undefined ? appState.selectedEndIndex : currentIndex;
+  // Seçili başlangıç ve bitiş indekslerini kontrol et
+  const selectedStartIndex = appState.selectedStartIndex !== undefined ? appState.selectedStartIndex : centerIndex;
+  const selectedEndIndex = appState.selectedEndIndex !== undefined ? appState.selectedEndIndex : centerIndex;
   
-  console.log('İşlenecek değerler:');
-  console.log('startIndex:', startIndex);
-  console.log('endIndex:', endIndex);
-  
-  // Önceki sahne ekleme butonu
-  if (startIndex > 0) {
-    prevSceneAddBtn.disabled = false;
-    prevSceneAddBtn.classList.remove('disabled');
-    console.log('prevSceneAddBtn: Aktif');
-  } else {
-    prevSceneAddBtn.disabled = true;
-    prevSceneAddBtn.classList.add('disabled');
-    console.log('prevSceneAddBtn: Devre dışı');
-  }
-  
-  // Önceki sahne çıkarma butonu - önceki sahneler eklendiyse aktif
-  if (startIndex < currentIndex) {
+  // Önceki sahne çıkarma butonu
+  // Eğer seçili başlangıç indeksi merkez indeksten küçükse (yani önceki sahneler eklenmiş)
+  // o zaman buton aktif olmalı
+  if (selectedStartIndex < centerIndex) {
     prevSceneRemoveBtn.disabled = false;
     prevSceneRemoveBtn.classList.remove('disabled');
-    console.log('prevSceneRemoveBtn: Aktif');
   } else {
+    // Önceki sahne yoksa buton devre dışı
     prevSceneRemoveBtn.disabled = true;
     prevSceneRemoveBtn.classList.add('disabled');
-    console.log('prevSceneRemoveBtn: Devre dışı');
+  }
+  
+  // Sonraki sahne çıkarma butonu
+  // Eğer seçili bitiş indeksi merkez indeksten büyükse (yani sonraki sahneler eklenmiş)
+  // o zaman buton aktif olmalı
+  if (selectedEndIndex > centerIndex) {
+    nextSceneRemoveBtn.disabled = false;
+    nextSceneRemoveBtn.classList.remove('disabled');
+  } else {
+    // Sonraki sahne yoksa buton devre dışı
+    nextSceneRemoveBtn.disabled = true;
+    nextSceneRemoveBtn.classList.add('disabled');
+  }
+  
+  // Önceki sahne ekleme butonu
+  // Daha önceki bir sahne varsa aktif olmalı
+  let hasPrevScene = false;
+  if (selectedStartIndex > 0) {
+    hasPrevScene = true;
+  }
+  
+  if (hasPrevScene) {
+    prevSceneAddBtn.disabled = false;
+    prevSceneAddBtn.classList.remove('disabled');
+  } else {
+    prevSceneAddBtn.disabled = true;
+    prevSceneAddBtn.classList.add('disabled');
   }
   
   // Sonraki sahne ekleme butonu
-  if (endIndex < appState.subtitles.length - 1) {
+  // Daha sonraki bir sahne varsa aktif olmalı
+  let hasNextScene = false;
+  if (selectedEndIndex < appState.subtitles.length - 1) {
+    hasNextScene = true;
+  }
+  
+  if (hasNextScene) {
     nextSceneAddBtn.disabled = false;
     nextSceneAddBtn.classList.remove('disabled');
-    console.log('nextSceneAddBtn: Aktif');
   } else {
     nextSceneAddBtn.disabled = true;
     nextSceneAddBtn.classList.add('disabled');
-    console.log('nextSceneAddBtn: Devre dışı');
   }
   
-  // Sonraki sahne çıkarma butonu - sonraki sahneler eklendiyse aktif
-  if (endIndex > currentIndex) {
-    nextSceneRemoveBtn.disabled = false;
-    nextSceneRemoveBtn.classList.remove('disabled');
-    console.log('nextSceneRemoveBtn: Aktif');
-  } else {
-    nextSceneRemoveBtn.disabled = true;
-    nextSceneRemoveBtn.classList.add('disabled');
-    console.log('nextSceneRemoveBtn: Devre dışı');
-  }
-  
-  console.log('updateButtonStates - Tamamlandı');
+  // DEBUG - Buton durumlarını logla
+  console.log("Buton durumları:", {
+    centerIndex,
+    selectedStartIndex,
+    selectedEndIndex,
+    prevRemoveActive: !prevSceneRemoveBtn.disabled,
+    nextRemoveActive: !nextSceneRemoveBtn.disabled,
+    prevAddActive: !prevSceneAddBtn.disabled,
+    nextAddActive: !nextSceneAddBtn.disabled
+  });
 }
 
 // Klip önizleme
@@ -1482,15 +1606,21 @@ function updateButtonStates() {
   const currentStartTime = parseTimeToSeconds(startTimeInput.value);
   const currentEndTime = parseTimeToSeconds(endTimeInput.value);
   const currentIndex = appState.currentSubtitleIndex;
+  const centerIndex = appState.originalCenterIndex !== undefined ? appState.originalCenterIndex : currentIndex;
   
   if (currentIndex === -1) return;
   
   const currentSubtitle = appState.subtitles[currentIndex];
+  const centerSubtitle = appState.subtitles[centerIndex];
+  
+  // Seçili başlangıç ve bitiş indekslerini kontrol et
+  const selectedStartIndex = appState.selectedStartIndex !== undefined ? appState.selectedStartIndex : centerIndex;
+  const selectedEndIndex = appState.selectedEndIndex !== undefined ? appState.selectedEndIndex : centerIndex;
   
   // Önceki sahne çıkarma butonu
-  // Eğer başlangıç zamanı merkez sahnenin başlangıç zamanından küçükse,
-  // önceki sahneler eklenmiş demektir ve buton aktif olmalı
-  if (currentStartTime < currentSubtitle.startTime) {
+  // Eğer seçili başlangıç indeksi merkez indeksten küçükse (yani önceki sahneler eklenmiş)
+  // o zaman buton aktif olmalı
+  if (selectedStartIndex < centerIndex) {
     prevSceneRemoveBtn.disabled = false;
     prevSceneRemoveBtn.classList.remove('disabled');
   } else {
@@ -1500,9 +1630,9 @@ function updateButtonStates() {
   }
   
   // Sonraki sahne çıkarma butonu
-  // Eğer bitiş zamanı merkez sahnenin bitiş zamanından büyükse,
-  // sonraki sahneler eklenmiş demektir ve buton aktif olmalı
-  if (currentEndTime > currentSubtitle.endTime) {
+  // Eğer seçili bitiş indeksi merkez indeksten büyükse (yani sonraki sahneler eklenmiş)
+  // o zaman buton aktif olmalı
+  if (selectedEndIndex > centerIndex) {
     nextSceneRemoveBtn.disabled = false;
     nextSceneRemoveBtn.classList.remove('disabled');
   } else {
@@ -1514,12 +1644,8 @@ function updateButtonStates() {
   // Önceki sahne ekleme butonu
   // Daha önceki bir sahne varsa aktif olmalı
   let hasPrevScene = false;
-  for (let i = 0; i < appState.subtitles.length; i++) {
-    const subtitle = appState.subtitles[i];
-    if (subtitle.endTime < currentStartTime) {
-      hasPrevScene = true;
-      break;
-    }
+  if (selectedStartIndex > 0) {
+    hasPrevScene = true;
   }
   
   if (hasPrevScene) {
@@ -1533,12 +1659,8 @@ function updateButtonStates() {
   // Sonraki sahne ekleme butonu
   // Daha sonraki bir sahne varsa aktif olmalı
   let hasNextScene = false;
-  for (let i = 0; i < appState.subtitles.length; i++) {
-    const subtitle = appState.subtitles[i];
-    if (subtitle.startTime > currentEndTime) {
-      hasNextScene = true;
-      break;
-    }
+  if (selectedEndIndex < appState.subtitles.length - 1) {
+    hasNextScene = true;
   }
   
   if (hasNextScene) {
@@ -1548,6 +1670,17 @@ function updateButtonStates() {
     nextSceneAddBtn.disabled = true;
     nextSceneAddBtn.classList.add('disabled');
   }
+  
+  // DEBUG - Buton durumlarını logla
+  console.log("Buton durumları:", {
+    centerIndex,
+    selectedStartIndex,
+    selectedEndIndex,
+    prevRemoveActive: !prevSceneRemoveBtn.disabled,
+    nextRemoveActive: !nextSceneRemoveBtn.disabled,
+    prevAddActive: !prevSceneAddBtn.disabled,
+    nextAddActive: !nextSceneAddBtn.disabled
+  });
 }
 
 // Fare tekerleği ile zoom yapma
@@ -1837,26 +1970,30 @@ function loadCurrentSettings() {
 
 // Önizlemeyi güncelle
 function updateSubtitlePreview() {
-  // Form değerlerini al
-  const fontSize = fontSizeInput.value;
-  const fontFamily = fontFamilySelect.value;
-  const fontBold = fontBoldCheckbox.checked;
-  const fontItalic = fontItalicCheckbox.checked;
-  const fontColor = fontColorInput.value;
-  const bgColor = bgColorInput.value;
-  const bgOpacity = bgOpacityInput.value;
-  const verticalPosition = verticalPositionInput.value;
+  if (appState.selectedStartIndex === undefined || appState.selectedEndIndex === undefined) {
+    return;
+  }
   
-  // Önizleme stillerini güncelle
-  subtitlePreview.style.fontSize = `${fontSize}px`;
-  subtitlePreview.style.fontFamily = fontFamily;
-  subtitlePreview.style.fontWeight = fontBold ? 'bold' : 'normal';
-  subtitlePreview.style.fontStyle = fontItalic ? 'italic' : 'normal';
-  subtitlePreview.style.color = fontColor;
-  subtitlePreview.style.backgroundColor = `${hexToRgba(bgColor, bgOpacity)}`;
+  // Seçilen altyazılar arasındaki metni görüntüle
+  let previewText = '';
+  for (let i = appState.selectedStartIndex; i <= appState.selectedEndIndex; i++) {
+    if (appState.subtitles[i]) {
+      previewText += appState.subtitles[i].text + ' ';
+    }
+  }
   
-  // Dikey konum bilgisi
-  subtitlePreview.setAttribute('data-position', `${verticalPosition}%`);
+  // Önizleme alanını güncelle (eğer mevcutsa)
+  const previewElement = document.getElementById('subtitle-preview');
+  if (previewElement) {
+    previewElement.textContent = previewText.trim();
+  }
+  
+  // Video üzerindeki altyazıyı da güncelle
+  if (videoSubtitle) {
+    videoSubtitle.textContent = previewText.trim();
+    videoSubtitle.style.display = previewText.trim() ? 'block' : 'none';
+    applySubtitleStyles();
+  }
 }
 
 // Altyazı stillerini uygula
@@ -2638,3 +2775,7 @@ subtitleOnBtn.addEventListener('click', () => {
   subtitleOffBtn.classList.remove('active');
   appState.embedSubtitles = true;
 });
+
+// Sahne ekleme/çıkarma olaylarındaki geçici değişkenleri tanımla
+let isSceneOperation = false;
+let savedCurrentSubtitleIndex = -1;
