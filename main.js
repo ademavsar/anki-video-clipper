@@ -1379,63 +1379,58 @@ async function checkAndConvertAudio(videoPath) {
 
       console.log(`Tespit edilen ses codec'i: ${codecName}`);
 
-      // eac3 formatı ise dönüştür
-      if (codecName === 'eac3') {
-        console.log('eac3 formatı tespit edildi, AAC formatına dönüştürülüyor...');
-        
-        // Geçici dosya yolu oluştur
-        const tempDir = path.join(os.tmpdir(), 'anki_video_clipper');
-        
-        // Geçici klasörü oluştur (yoksa)
-        if (!fs.existsSync(tempDir)) {
-          fs.mkdirSync(tempDir, { recursive: true });
+      // Tüm ses formatlarını AAC'ye dönüştür - web tarayıcısı uyumluluğu için
+      console.log(`Video dosyası AAC formatına dönüştürülüyor...`);
+      
+      // Geçici dosya yolu oluştur
+      const tempDir = path.join(os.tmpdir(), 'anki_video_clipper');
+      
+      // Geçici klasörü oluştur (yoksa)
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      
+      // Dosya adını oluştur - orijinal dosya adını ve hash değerini kullan
+      const fileHash = require('crypto').createHash('md5').update(videoPath).digest('hex').substring(0, 8);
+      const tempFile = path.join(tempDir, `converted_${fileHash}_${path.basename(videoPath)}`);
+      
+      console.log(`Dönüştürülmüş dosya: ${tempFile}`);
+      
+      const ffmpeg = spawn('ffmpeg', [
+        '-i', videoPath,
+        '-threads', '0',     // Maksimum CPU çekirdeği kullanımı
+        '-c:v', 'copy',      // Video kanalını kopyala (kaliteyi koru)
+        '-c:a', 'aac',       // Ses kanalını AAC'ye dönüştür (geniş uyumluluk)
+        '-b:a', '192k',      // AAC bit rate
+        '-c:s', 'copy',      // Altyazıları kopyala
+        '-map', '0',         // Tüm stream'leri dahil et
+        '-y',                // Varolan dosyanın üzerine yaz
+        tempFile
+      ]);
+
+      ffmpeg.stdout.on('data', (data) => {
+        console.log(`FFmpeg çıktı: ${data}`);
+      });
+
+      ffmpeg.stderr.on('data', (data) => {
+        console.log(`FFmpeg işlem: ${data}`);
+      });
+
+      ffmpeg.on('close', (code) => {
+        if (code !== 0) {
+          console.error(`FFmpeg işlemi başarısız oldu, kod: ${code}`);
+          // Hata durumunda orijinal dosyayı kullan
+          resolve(videoPath);
+          return;
         }
         
-        // Dosya adını oluştur - orijinal dosya adını ve hash değerini kullan
-        const fileHash = require('crypto').createHash('md5').update(videoPath).digest('hex').substring(0, 8);
-        const tempFile = path.join(tempDir, `converted_${fileHash}_${path.basename(videoPath)}`);
+        console.log('Dönüştürme işlemi başarıyla tamamlandı');
         
-        console.log(`Dönüştürülmüş dosya: ${tempFile}`);
+        // Dönüştürülmüş dosyayı önbelleğe ekle
+        audioConversionCache.add(videoPath, tempFile);
         
-        const ffmpeg = spawn('ffmpeg', [
-          '-i', videoPath,
-          '-threads', '0',  // Maksimum CPU çekirdeği kullanımı
-          '-c:v', 'copy',        // Video kanalını kopyala (kaliteyi koru)
-          '-c:a', 'flac',        // Ses kanalını FLAC'a dönüştür (lossless)
-          '-c:s', 'copy',        // Altyazıları kopyala
-          '-map', '0',           // Tüm stream'leri dahil et
-          '-y',                  // Varolan dosyanın üzerine yaz
-          tempFile
-        ]);
-
-        ffmpeg.stdout.on('data', (data) => {
-          console.log(`FFmpeg çıktı: ${data}`);
-        });
-
-        ffmpeg.stderr.on('data', (data) => {
-          console.log(`FFmpeg işlem: ${data}`);
-        });
-
-        ffmpeg.on('close', (code) => {
-          if (code !== 0) {
-            console.error(`FFmpeg işlemi başarısız oldu, kod: ${code}`);
-            // Hata durumunda orijinal dosyayı kullan
-            resolve(videoPath);
-            return;
-          }
-          
-          console.log('Dönüştürme işlemi başarıyla tamamlandı');
-          
-          // Dönüştürülmüş dosyayı önbelleğe ekle
-          audioConversionCache.add(videoPath, tempFile);
-          
-          resolve(tempFile);
-        });
-      } else {
-        // Dönüştürme gerekmiyorsa orijinal dosyayı kullan
-        console.log('Dönüştürme gerekmiyor, orijinal dosya kullanılacak');
-        resolve(videoPath);
-      }
+        resolve(tempFile);
+      });
     });
   });
 }
