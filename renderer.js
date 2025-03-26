@@ -614,58 +614,113 @@ function parseVTT(content) {
 
 // Altyazı takip sistemi
 function setupSubtitleTracking() {
-  // Önceki izleyiciyi temizle
+  // Önce mevcut event listener'ı kaldır (eğer varsa)
   videoPlayer.removeEventListener('timeupdate', updateActiveSubtitle);
-  // Yeni izleyici ekle
+  
+  // Aktif altyazıyı izleyen event listener ekle
   videoPlayer.addEventListener('timeupdate', updateActiveSubtitle);
 }
 
-// Geçerli aktif altyazıyı güncelle
+// Aktif altyazıyı güncelleme (videodan aktif altyazıyı bulma)
 function updateActiveSubtitle() {
-  const currentTime = videoPlayer.currentTime;
+  // Sahne operasyonu sırasında altyazı güncellemesini atlayalım
+  if (isSceneOperation) {
+    return;
+  }
   
-  // Şu anki zaman damgasına göre aktif altyazıyı bul
-  const activeIndex = appState.subtitles.findIndex(
-    subtitle => currentTime >= subtitle.startTime && currentTime <= subtitle.endTime
-  );
-  
-  // Aktif altyazı değiştiyse güncelle
-  if (activeIndex !== appState.currentSubtitleIndex) {
-    appState.currentSubtitleIndex = activeIndex;
+  // Video ve altyazı mevcutsa işlemi gerçekleştir
+  if (videoPlayer && appState.subtitles && appState.subtitles.length > 0) {
+    const currentTime = videoPlayer.currentTime;
+    let activeIndex = -1;
     
-    // Tüm altyazılardan active sınıfını kaldır
-    const subtitleItems = document.querySelectorAll('.subtitle-item');
-    subtitleItems.forEach(item => {
-      item.classList.remove('active');
-    });
-    
-    // Aktif altyazıya active sınıfını ekle
-    if (activeIndex !== -1) {
-      const activeItem = document.querySelector(`.subtitle-item[data-index="${activeIndex}"]`);
-      if (activeItem) {
-        activeItem.classList.add('active');
-        
-        // Otomatik kaydırma ayarı açıksa, aktif altyazıyı görünür hale getir
-        if (appState.subtitleSettings.autoScroll) {
-        activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-        
-        // Altyazıyı video üzerinde göster
-        videoSubtitle.textContent = appState.subtitles[activeIndex].text;
-        videoSubtitle.style.display = 'block';
-        
-        // Altyazı stillerini uygula
-        applySubtitleStyles();
+    // Yalnızca seçili merkez bölgedeki altyazı aktif olabilir - önemli değişiklik burada
+    // Merkez sahnenin bilgilerini al
+    if (appState.originalCenterIndex !== undefined) {
+      const centerIndex = appState.originalCenterIndex;
+      const centerSubtitle = appState.subtitles[centerIndex];
+      
+      // Eğer şu anki video zamanı merkez sahnenin zamanı içindeyse
+      if (currentTime >= centerSubtitle.startTime && currentTime <= centerSubtitle.endTime) {
+        activeIndex = centerIndex;
+      } else {
+        // Merkez sahne dışında olduğumuzda altyazıyı gösterme
+        activeIndex = -1;
       }
     } else {
-      // Aktif altyazı yoksa, video üzerindeki altyazıyı gizle
-      videoSubtitle.textContent = '';
-      videoSubtitle.style.display = 'none';
+      // Eğer merkez sahne yoksa, normal davranışı uygula
+      for (let i = 0; i < appState.subtitles.length; i++) {
+        const subtitle = appState.subtitles[i];
+        if (currentTime >= subtitle.startTime && currentTime <= subtitle.endTime) {
+          activeIndex = i;
+          break;
+        }
+      }
+    }
+    
+    // Aktif altyazı değiştiyse güncelle
+    if (activeIndex !== appState.activeSubtitleIndex) {
+      appState.activeSubtitleIndex = activeIndex;
+      
+      // Altyazı listesini ve video üzerindeki altyazıyı güncelle
+      updateSubtitleDisplay(activeIndex);
+      
+      // Altyazı yükseltme özelliği aktifse, listedeki o altyazıyı vurgula
+      if (appState.subtitleSettings.highlight) {
+        const subtitleItems = document.querySelectorAll('.subtitle-item');
+        subtitleItems.forEach(item => {
+          item.classList.remove('active');
+        });
+        
+        if (activeIndex !== -1) {
+          const activeItem = document.querySelector(`.subtitle-item[data-index="${activeIndex}"]`);
+          if (activeItem) {
+            activeItem.classList.add('active');
+            
+            // Otomatik kaydırma açıksa, aktif altyazıya kaydır
+            if (appState.subtitleSettings.autoScroll) {
+              activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }
+        }
+      }
     }
   }
   
   // Zaman çizelgesi imlecini güncelle
   updateTimelineCursor();
+}
+
+// Altyazı görüntüleme güncellemesi
+function updateSubtitleDisplay(activeIndex) {
+  if (activeIndex === -1) {
+    // Aktif altyazı yoksa, video üzerindeki altyazıyı gizle
+    videoSubtitle.textContent = '';
+    videoSubtitle.style.display = 'none';
+  } else {
+    // Altyazıyı video üzerinde göster
+    videoSubtitle.textContent = appState.subtitles[activeIndex].text;
+    videoSubtitle.style.display = 'block';
+    
+    // Altyazı stillerini uygula
+    applySubtitleStyles();
+  }
+}
+
+// Video altyazı önizlemesini güncelle - bu fonksiyon daha önce diğer altyazıları gösteriyordu
+function updateSubtitlePreview() {
+  // Seçili sahne varmı kontrol et
+  if (appState.originalCenterIndex === undefined) return;
+  
+  // Burada yalnızca merkez sahnedeki altyazı önizlemesini göster
+  const centerIndex = appState.originalCenterIndex;
+  const centerSubtitle = appState.subtitles[centerIndex];
+  
+  // Önizleme olarak yalnızca merkez sahnedeki metni göster
+  videoSubtitle.textContent = centerSubtitle.text;
+  videoSubtitle.style.display = 'block';
+  
+  // Altyazı stillerini uygula
+  applySubtitleStyles();
 }
 
 // Zaman çizelgesi imlecini güncelle
@@ -962,41 +1017,32 @@ function renderTimeline() {
 
 // Klip oluşturmak için altyazı seç
 function selectSubtitleForClip(index) {
-  if (index < 0 || index >= appState.subtitles.length) return;
+  console.log('Klip İçin Altyazı Seçiliyor:', index);
   
-  console.log('selectSubtitleForClip - Başlangıç:');
-  console.log('Seçilen indeks:', index);
-  
-  // Seçilen altyazı indeksini ve süreleri güncelle
-  appState.currentSubtitleIndex = index;
-  appState.originalCenterIndex = index; // Merkez referans indeksi olarak kaydet
   const subtitle = appState.subtitles[index];
+  if (!subtitle) return;
   
-  // Başlangıç ve bitiş indekslerini seçilen altyazı için ayarla
+  // Seçilen altyazı ve merkez sahne indekslerini kaydet
+  appState.currentSubtitleIndex = index;
+  appState.originalCenterIndex = index; // Önemli: Merkez sahne indeksini kaydet
+  
+  // İlk seçimde başlangıç ve bitiş indeksleri ayarla
   appState.selectedStartIndex = index;
   appState.selectedEndIndex = index;
   
-  console.log('Ayarlanan değerler:');
-  console.log('appState.currentSubtitleIndex:', appState.currentSubtitleIndex);
-  console.log('appState.originalCenterIndex:', appState.originalCenterIndex);
-  console.log('appState.selectedStartIndex:', appState.selectedStartIndex);
-  console.log('appState.selectedEndIndex:', appState.selectedEndIndex);
-  
-  // Başlangıç ve bitiş zamanlarını ayarla
+  // Zaman kontrollerini güncelle
   startTimeInput.value = formatTimeWithMs(subtitle.startTime);
   endTimeInput.value = formatTimeWithMs(subtitle.endTime);
   
-  // Seçili altyazı metnini göster
-  subtitlePreview.textContent = subtitle.text;
-  
-  // Videoyu ilgili konuma getir
+  // Videoyu sahne başlangıcına getir
   videoPlayer.currentTime = subtitle.startTime;
   
   // Videoyu oynat
   videoPlayer.play();
   
-  // Bitiş noktasında durdurma fonksiyonu
+  // Sahnenin sonunda durdur
   const endTime = subtitle.endTime;
+  
   const stopAtEnd = () => {
     if (videoPlayer.currentTime >= endTime) {
       videoPlayer.pause();
@@ -1035,10 +1081,13 @@ function selectSubtitleForClip(index) {
   // Butonların durumlarını güncelle
   updateButtonStates();
   
+  // Merkez sahnedeki altyazıyı göster
+  updateSubtitlePreview();
+  
   console.log('selectSubtitleForClip - Tamamlandı');
 }
 
-// Önceki sahne ekleme butonu - tamamen yeniden yazıldı
+// Önceki sahne ekleme butonu
 prevSceneAddBtn.addEventListener('click', () => {
   console.log('----------- ÖNCEKI SAHNE EKLEME TIKLANDI -----------');
   
@@ -1088,7 +1137,9 @@ prevSceneAddBtn.addEventListener('click', () => {
     // Timeline ve buton durumlarını güncelle
     renderTimeline();
     updateButtonStates();
-    updateSubtitlePreview(); // Altyazı önizlemesini güncelle
+    
+    // Merkez sahnedeki altyazıyı göster
+    updateSubtitlePreview();
     
     console.log('İŞLEM SONRASI DURUM:');
     console.log('> Önceki sahne eklendi - ESKİ metin:', oldStartText);
@@ -1105,7 +1156,7 @@ prevSceneAddBtn.addEventListener('click', () => {
   console.log('----------- ÖNCEKI SAHNE EKLEME TAMAMLANDI -----------');
 });
 
-// Önceki sahne çıkarma butonu - tamamen yeniden yazıldı
+// Önceki sahne çıkarma butonu
 prevSceneRemoveBtn.addEventListener('click', () => {
   console.log('----------- ÖNCEKI SAHNE ÇIKARMA TIKLANDI -----------');
   
@@ -1155,7 +1206,9 @@ prevSceneRemoveBtn.addEventListener('click', () => {
     // Timeline ve buton durumlarını güncelle
     renderTimeline();
     updateButtonStates();
-    updateSubtitlePreview(); // Altyazı önizlemesini güncelle
+    
+    // Merkez sahnedeki altyazıyı göster
+    updateSubtitlePreview();
     
     console.log('İŞLEM SONRASI DURUM:');
     console.log('> Önceki sahne çıkarıldı - ESKİ metin:', oldStartText);
@@ -1172,7 +1225,7 @@ prevSceneRemoveBtn.addEventListener('click', () => {
   console.log('----------- ÖNCEKI SAHNE ÇIKARMA TAMAMLANDI -----------');
 });
 
-// Sonraki sahne ekleme butonu - tamamen yeniden yazıldı
+// Sonraki sahne ekleme butonu
 nextSceneAddBtn.addEventListener('click', () => {
   console.log('----------- SONRAKI SAHNE EKLEME TIKLANDI -----------');
   
@@ -1222,7 +1275,9 @@ nextSceneAddBtn.addEventListener('click', () => {
     // Timeline ve buton durumlarını güncelle
     renderTimeline();
     updateButtonStates();
-    updateSubtitlePreview(); // Altyazı önizlemesini güncelle
+    
+    // Merkez sahnedeki altyazıyı göster
+    updateSubtitlePreview();
     
     console.log('İŞLEM SONRASI DURUM:');
     console.log('> Sonraki sahne eklendi - ESKİ metin:', oldEndText);
@@ -1239,7 +1294,7 @@ nextSceneAddBtn.addEventListener('click', () => {
   console.log('----------- SONRAKI SAHNE EKLEME TAMAMLANDI -----------');
 });
 
-// Sonraki sahne çıkarma butonu - tamamen yeniden yazıldı
+// Sonraki sahne çıkarma butonu
 nextSceneRemoveBtn.addEventListener('click', () => {
   console.log('----------- SONRAKI SAHNE ÇIKARMA TIKLANDI -----------');
   
@@ -1289,7 +1344,9 @@ nextSceneRemoveBtn.addEventListener('click', () => {
     // Timeline ve buton durumlarını güncelle
     renderTimeline();
     updateButtonStates();
-    updateSubtitlePreview(); // Altyazı önizlemesini güncelle
+    
+    // Merkez sahnedeki altyazıyı göster
+    updateSubtitlePreview();
     
     console.log('İŞLEM SONRASI DURUM:');
     console.log('> Sonraki sahne çıkarıldı - ESKİ metin:', oldEndText);
@@ -1975,30 +2032,19 @@ function loadCurrentSettings() {
 
 // Önizlemeyi güncelle
 function updateSubtitlePreview() {
-  if (appState.selectedStartIndex === undefined || appState.selectedEndIndex === undefined) {
-    return;
-  }
+  // Seçili sahne varmı kontrol et
+  if (appState.originalCenterIndex === undefined) return;
   
-  // Seçilen altyazılar arasındaki metni görüntüle
-  let previewText = '';
-  for (let i = appState.selectedStartIndex; i <= appState.selectedEndIndex; i++) {
-    if (appState.subtitles[i]) {
-      previewText += appState.subtitles[i].text + ' ';
-    }
-  }
+  // Burada yalnızca merkez sahnedeki altyazı önizlemesini göster
+  const centerIndex = appState.originalCenterIndex;
+  const centerSubtitle = appState.subtitles[centerIndex];
   
-  // Önizleme alanını güncelle (eğer mevcutsa)
-  const previewElement = document.getElementById('subtitle-preview');
-  if (previewElement) {
-    previewElement.textContent = previewText.trim();
-  }
+  // Önizleme olarak yalnızca merkez sahnedeki metni göster
+  videoSubtitle.textContent = centerSubtitle.text;
+  videoSubtitle.style.display = 'block';
   
-  // Video üzerindeki altyazıyı da güncelle
-  if (videoSubtitle) {
-    videoSubtitle.textContent = previewText.trim();
-    videoSubtitle.style.display = previewText.trim() ? 'block' : 'none';
-    applySubtitleStyles();
-  }
+  // Altyazı stillerini uygula
+  applySubtitleStyles();
 }
 
 // Altyazı stillerini uygula
@@ -2781,6 +2827,6 @@ subtitleOnBtn.addEventListener('click', () => {
   appState.embedSubtitles = true;
 });
 
-// Sahne ekleme/çıkarma olaylarındaki geçici değişkenleri tanımla
+// Sahne işlemlerini izlemek için bayrak ve kaydetmek için değişkenler
 let isSceneOperation = false;
 let savedCurrentSubtitleIndex = -1;
