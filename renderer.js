@@ -992,6 +992,23 @@ function selectSubtitleForClip(index) {
   // Videoyu ilgili konuma getir
   videoPlayer.currentTime = subtitle.startTime;
   
+  // Videoyu oynat
+  videoPlayer.play();
+  
+  // Bitiş noktasında durdurma fonksiyonu
+  const endTime = subtitle.endTime;
+  const stopAtEnd = () => {
+    if (videoPlayer.currentTime >= endTime) {
+      videoPlayer.pause();
+      videoPlayer.removeEventListener('timeupdate', stopAtEnd);
+      console.log('Sahne oynatma tamamlandı ve durduruldu');
+    }
+  };
+  
+  // Videoyu bitiş noktasında durdurmak için event listener ekle
+  videoPlayer.removeEventListener('timeupdate', stopAtEnd); // Önceki listener'ı kaldır
+  videoPlayer.addEventListener('timeupdate', stopAtEnd);
+  
   // Seçimi vurgula
   const subtitleItems = document.querySelectorAll('.subtitle-item');
   subtitleItems.forEach(item => {
@@ -1291,84 +1308,81 @@ nextSceneRemoveBtn.addEventListener('click', () => {
 
 // Butonların durumunu güncelleme
 function updateButtonStates() {
-  const currentStartTime = parseTimeToSeconds(startTimeInput.value);
-  const currentEndTime = parseTimeToSeconds(endTimeInput.value);
-  const currentIndex = appState.currentSubtitleIndex;
-  const centerIndex = appState.originalCenterIndex !== undefined ? appState.originalCenterIndex : currentIndex;
+  // Merkez referans indeksini kullan
+  const centerIndex = appState.originalCenterIndex !== undefined ? appState.originalCenterIndex : appState.currentSubtitleIndex;
   
-  if (currentIndex === -1) return;
+  console.log('updateButtonStates - Başlangıç:');
+  console.log('centerIndex:', centerIndex);
+  console.log('appState.originalCenterIndex:', appState.originalCenterIndex);
+  console.log('appState.selectedStartIndex:', appState.selectedStartIndex);
+  console.log('appState.selectedEndIndex:', appState.selectedEndIndex);
   
-  const currentSubtitle = appState.subtitles[currentIndex];
-  const centerSubtitle = appState.subtitles[centerIndex];
-  
-  // Seçili başlangıç ve bitiş indekslerini kontrol et
-  const selectedStartIndex = appState.selectedStartIndex !== undefined ? appState.selectedStartIndex : centerIndex;
-  const selectedEndIndex = appState.selectedEndIndex !== undefined ? appState.selectedEndIndex : centerIndex;
-  
-  // Önceki sahne çıkarma butonu
-  // Eğer seçili başlangıç indeksi merkez indeksten küçükse (yani önceki sahneler eklenmiş)
-  // o zaman buton aktif olmalı
-  if (selectedStartIndex < centerIndex) {
-    prevSceneRemoveBtn.disabled = false;
-    prevSceneRemoveBtn.classList.remove('disabled');
-  } else {
-    // Önceki sahne yoksa buton devre dışı
+  if (centerIndex === -1 || !appState.subtitles || appState.subtitles.length === 0) {
+    prevSceneAddBtn.disabled = true;
     prevSceneRemoveBtn.disabled = true;
+    nextSceneAddBtn.disabled = true;
+    nextSceneRemoveBtn.disabled = true;
+    prevSceneAddBtn.classList.add('disabled');
     prevSceneRemoveBtn.classList.add('disabled');
+    nextSceneAddBtn.classList.add('disabled');
+    nextSceneRemoveBtn.classList.add('disabled');
+    console.log('İşlem yapılmadı: Geçerli altyazı yok');
+    return;
   }
   
-  // Sonraki sahne çıkarma butonu
-  // Eğer seçili bitiş indeksi merkez indeksten büyükse (yani sonraki sahneler eklenmiş)
-  // o zaman buton aktif olmalı
-  if (selectedEndIndex > centerIndex) {
-    nextSceneRemoveBtn.disabled = false;
-    nextSceneRemoveBtn.classList.remove('disabled');
-  } else {
-    // Sonraki sahne yoksa buton devre dışı
-    nextSceneRemoveBtn.disabled = true;
-    nextSceneRemoveBtn.classList.add('disabled');
-  }
+  // Kullanıcının seçtiği indeksleri takip ediyoruz
+  const startIndex = appState.selectedStartIndex !== undefined ? appState.selectedStartIndex : centerIndex;
+  const endIndex = appState.selectedEndIndex !== undefined ? appState.selectedEndIndex : centerIndex;
+  
+  console.log('İşlenecek değerler:');
+  console.log('startIndex:', startIndex);
+  console.log('endIndex:', endIndex);
   
   // Önceki sahne ekleme butonu
-  // Daha önceki bir sahne varsa aktif olmalı
-  let hasPrevScene = false;
-  if (selectedStartIndex > 0) {
-    hasPrevScene = true;
-  }
-  
-  if (hasPrevScene) {
+  if (startIndex > 0) {
     prevSceneAddBtn.disabled = false;
     prevSceneAddBtn.classList.remove('disabled');
+    console.log('prevSceneAddBtn: Aktif');
   } else {
     prevSceneAddBtn.disabled = true;
     prevSceneAddBtn.classList.add('disabled');
+    console.log('prevSceneAddBtn: Devre dışı');
+  }
+  
+  // Önceki sahne çıkarma butonu - önceki sahneler eklendiyse aktif
+  if (startIndex < centerIndex) {
+    prevSceneRemoveBtn.disabled = false;
+    prevSceneRemoveBtn.classList.remove('disabled');
+    console.log('prevSceneRemoveBtn: Aktif');
+  } else {
+    prevSceneRemoveBtn.disabled = true;
+    prevSceneRemoveBtn.classList.add('disabled');
+    console.log('prevSceneRemoveBtn: Devre dışı');
   }
   
   // Sonraki sahne ekleme butonu
-  // Daha sonraki bir sahne varsa aktif olmalı
-  let hasNextScene = false;
-  if (selectedEndIndex < appState.subtitles.length - 1) {
-    hasNextScene = true;
-  }
-  
-  if (hasNextScene) {
+  if (endIndex < appState.subtitles.length - 1) {
     nextSceneAddBtn.disabled = false;
     nextSceneAddBtn.classList.remove('disabled');
+    console.log('nextSceneAddBtn: Aktif');
   } else {
     nextSceneAddBtn.disabled = true;
     nextSceneAddBtn.classList.add('disabled');
+    console.log('nextSceneAddBtn: Devre dışı');
   }
   
-  // DEBUG - Buton durumlarını logla
-  console.log("Buton durumları:", {
-    centerIndex,
-    selectedStartIndex,
-    selectedEndIndex,
-    prevRemoveActive: !prevSceneRemoveBtn.disabled,
-    nextRemoveActive: !nextSceneRemoveBtn.disabled,
-    prevAddActive: !prevSceneAddBtn.disabled,
-    nextAddActive: !nextSceneAddBtn.disabled
-  });
+  // Sonraki sahne çıkarma butonu - sonraki sahneler eklendiyse aktif
+  if (endIndex > centerIndex) {
+    nextSceneRemoveBtn.disabled = false;
+    nextSceneRemoveBtn.classList.remove('disabled');
+    console.log('nextSceneRemoveBtn: Aktif');
+  } else {
+    nextSceneRemoveBtn.disabled = true;
+    nextSceneRemoveBtn.classList.add('disabled');
+    console.log('nextSceneRemoveBtn: Devre dışı');
+  }
+  
+  console.log('updateButtonStates - Tamamlandı');
 }
 
 // Klip önizleme
@@ -1606,21 +1620,15 @@ function updateButtonStates() {
   const currentStartTime = parseTimeToSeconds(startTimeInput.value);
   const currentEndTime = parseTimeToSeconds(endTimeInput.value);
   const currentIndex = appState.currentSubtitleIndex;
-  const centerIndex = appState.originalCenterIndex !== undefined ? appState.originalCenterIndex : currentIndex;
   
   if (currentIndex === -1) return;
   
   const currentSubtitle = appState.subtitles[currentIndex];
-  const centerSubtitle = appState.subtitles[centerIndex];
-  
-  // Seçili başlangıç ve bitiş indekslerini kontrol et
-  const selectedStartIndex = appState.selectedStartIndex !== undefined ? appState.selectedStartIndex : centerIndex;
-  const selectedEndIndex = appState.selectedEndIndex !== undefined ? appState.selectedEndIndex : centerIndex;
   
   // Önceki sahne çıkarma butonu
-  // Eğer seçili başlangıç indeksi merkez indeksten küçükse (yani önceki sahneler eklenmiş)
-  // o zaman buton aktif olmalı
-  if (selectedStartIndex < centerIndex) {
+  // Eğer başlangıç zamanı merkez sahnenin başlangıç zamanından küçükse,
+  // önceki sahneler eklenmiş demektir ve buton aktif olmalı
+  if (currentStartTime < currentSubtitle.startTime) {
     prevSceneRemoveBtn.disabled = false;
     prevSceneRemoveBtn.classList.remove('disabled');
   } else {
@@ -1630,9 +1638,9 @@ function updateButtonStates() {
   }
   
   // Sonraki sahne çıkarma butonu
-  // Eğer seçili bitiş indeksi merkez indeksten büyükse (yani sonraki sahneler eklenmiş)
-  // o zaman buton aktif olmalı
-  if (selectedEndIndex > centerIndex) {
+  // Eğer bitiş zamanı merkez sahnenin bitiş zamanından büyükse,
+  // sonraki sahneler eklenmiş demektir ve buton aktif olmalı
+  if (currentEndTime > currentSubtitle.endTime) {
     nextSceneRemoveBtn.disabled = false;
     nextSceneRemoveBtn.classList.remove('disabled');
   } else {
@@ -1644,8 +1652,12 @@ function updateButtonStates() {
   // Önceki sahne ekleme butonu
   // Daha önceki bir sahne varsa aktif olmalı
   let hasPrevScene = false;
-  if (selectedStartIndex > 0) {
-    hasPrevScene = true;
+  for (let i = 0; i < appState.subtitles.length; i++) {
+    const subtitle = appState.subtitles[i];
+    if (subtitle.endTime < currentStartTime) {
+      hasPrevScene = true;
+      break;
+    }
   }
   
   if (hasPrevScene) {
@@ -1659,8 +1671,12 @@ function updateButtonStates() {
   // Sonraki sahne ekleme butonu
   // Daha sonraki bir sahne varsa aktif olmalı
   let hasNextScene = false;
-  if (selectedEndIndex < appState.subtitles.length - 1) {
-    hasNextScene = true;
+  for (let i = 0; i < appState.subtitles.length; i++) {
+    const subtitle = appState.subtitles[i];
+    if (subtitle.startTime > currentEndTime) {
+      hasNextScene = true;
+      break;
+    }
   }
   
   if (hasNextScene) {
@@ -1670,17 +1686,6 @@ function updateButtonStates() {
     nextSceneAddBtn.disabled = true;
     nextSceneAddBtn.classList.add('disabled');
   }
-  
-  // DEBUG - Buton durumlarını logla
-  console.log("Buton durumları:", {
-    centerIndex,
-    selectedStartIndex,
-    selectedEndIndex,
-    prevRemoveActive: !prevSceneRemoveBtn.disabled,
-    nextRemoveActive: !nextSceneRemoveBtn.disabled,
-    prevAddActive: !prevSceneAddBtn.disabled,
-    nextAddActive: !nextSceneAddBtn.disabled
-  });
 }
 
 // Fare tekerleği ile zoom yapma
