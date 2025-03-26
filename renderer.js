@@ -83,6 +83,16 @@ const rightPanel = document.querySelector('.right-panel');
 // Sürüklenebilir ayırıcı işlevselliği
 let isResizing = false;
 let lastDownX = 0;
+let resizeTooltip = null;
+
+// Boyut bilgisi gösterecek tooltip oluştur
+function createResizeTooltip() {
+  if (!resizeTooltip) {
+    resizeTooltip = document.createElement('div');
+    resizeTooltip.className = 'resize-tooltip';
+    document.body.appendChild(resizeTooltip);
+  }
+}
 
 panelResizer.addEventListener('mousedown', (e) => {
   isResizing = true;
@@ -90,6 +100,9 @@ panelResizer.addEventListener('mousedown', (e) => {
   panelResizer.classList.add('active');
   document.body.style.cursor = 'col-resize';
   document.body.style.userSelect = 'none';
+  
+  // Tooltip oluştur
+  createResizeTooltip();
   
   // Fare hareketlerini yakalamak için event listener'ları ekle
   document.addEventListener('mousemove', onMouseMove);
@@ -124,6 +137,14 @@ function onMouseMove(e) {
   leftPanel.style.width = `${leftPercent}%`;
   rightPanel.style.width = `${rightPercent}%`;
   
+  // Tooltip içeriğini güncelle ve göster
+  if (resizeTooltip) {
+    resizeTooltip.textContent = `Sol: ${Math.round(leftPercent)}% - Sağ: ${Math.round(rightPercent)}%`;
+    resizeTooltip.style.display = 'block';
+    resizeTooltip.style.left = `${e.pageX + 10}px`;
+    resizeTooltip.style.top = `${e.pageY + 10}px`;
+  }
+  
   // Video container ve oynatıcının alanı düzgünce doldurmalarını sağla
   const videoContainer = document.querySelector('.video-container');
   const videoPlayer = document.getElementById('video-player');
@@ -146,6 +167,11 @@ function onMouseUp() {
   document.body.style.cursor = '';
   document.body.style.userSelect = '';
   
+  // Tooltip'i gizle
+  if (resizeTooltip) {
+    resizeTooltip.style.display = 'none';
+  }
+  
   // Event listener'ları kaldır
   document.removeEventListener('mousemove', onMouseMove);
   document.removeEventListener('mouseup', onMouseUp);
@@ -154,9 +180,9 @@ function onMouseUp() {
 
 // Sayfa yüklendiğinde panel genişliklerini yükle
 function loadPanelWidths() {
-  // Her zaman varsayılan değerleri kullan
-  leftPanel.style.width = '65%';
-  rightPanel.style.width = '35%';
+  // Varsayılan değerleri 80 - 20 olarak ayarla
+  leftPanel.style.width = '80%';
+  rightPanel.style.width = '20%';
 }
 
 // Uygulama durumu
