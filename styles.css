@@ -122,7 +122,7 @@ body {
 
 /* Altyazı Bölümü */
 .subtitle-container {
-  flex: 1;
+  flex: 1; /* Mevcut kullanılabilir alanın çoğunu bu elemana ver */
   display: flex;
   flex-direction: column;
   background-color: #2d2d2d;
@@ -266,12 +266,13 @@ body {
 
 /* Klip Düzenleyici */
 .clip-editor {
-  flex: 1;
+  flex: 0 0 auto; /* Sabit yükseklik ile yalnızca ihtiyaç duyduğu alanı kapla */
   display: flex;
   flex-direction: column;
   background-color: #2d2d2d;
   border-radius: 5px;
   overflow: hidden;
+  margin-bottom: 0; /* Alt boşluk yok */
 }
 
 .clip-editor h3 {
@@ -318,45 +319,40 @@ body {
 /* Zaman Kontrolleri Yeni Stiller */
 .time-controls {
   display: flex;
-  flex-direction: row;
-  gap: 15px;
-  background-color: #2a2a2a;
-  padding: 10px;
-  border-radius: 4px;
-  margin-bottom: 15px;
-  border: 1px solid #444;
-}
-
-.time-controls > div {
-  flex: 1;
+  justify-content: space-between;
+  margin-top: 15px;
+  width: 100%;
+  flex-wrap: wrap; /* Eğer alan darsa elementlerin alt alta düşmesine izin ver */
+  gap: 10px; /* Elementler arasında boşluk bırak */
 }
 
 .time-control-group {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  flex: 1;
+  min-width: 140px; /* Minimum genişlik belirle */
 }
 
 .time-control-group label {
+  margin-bottom: 5px;
+  color: #ccc;
   font-size: 13px;
-  color: #bbb;
-  font-weight: 500;
 }
 
 .time-input-group {
   display: flex;
-  flex-direction: row;
-  gap: 5px;
-  align-items: center;
+  width: 100%;
 }
 
 .time-input-group input {
   flex: 1;
+  width: calc(100% - 30px); /* Sağdaki spin butonları için alan bırak */
+  padding: 8px 10px;
+  border-radius: 4px 0 0 4px;
+  border: 1px solid #444;
   background-color: #333;
-  border: 1px solid #555;
-  color: #fff;
-  padding: 6px 8px;
-  border-radius: 3px;
+  color: white;
+  font-family: monospace; /* Sabit genişlikli font */
   font-size: 13px;
 }
 
