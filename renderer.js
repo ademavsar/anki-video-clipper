@@ -1953,20 +1953,24 @@ async function checkEmbeddedSubtitles(videoPath) {
     // Dahili altyazıları listele
     const subtitles = await window.electronAPI.listEmbeddedSubtitles(videoPath);
     
-    // Dahili altyazı varsa, kullanıcıya bildir
+    // Dahili altyazı varsa, işle
     if (subtitles && subtitles.length > 0) {
       console.log(`${subtitles.length} embedded subtitles found`);
       
-      // Eğer harici altyazı seçilmemişse, dahili altyazıları göster
-      if (!appState.subtitlePath) {
-        showEmbeddedSubtitlesModal(videoPath, subtitles);
-      } else {
-        // Harici altyazı zaten seçilmiş, sadece bilgi ver
-        showNotification(`${subtitles.length} embedded subtitles found. You can access them from the video menu.`);
-      }
-      
       // Dahili altyazıları sakla
       appState.embeddedSubtitles = subtitles;
+      
+      // Eğer harici altyazı seçilmemişse, ilk altyazıyı otomatik olarak seç
+      if (!appState.subtitlePath) {
+        // İlk altyazı akışını seç
+        await selectEmbeddedSubtitle(videoPath, subtitles[0].index);
+        
+        // Bildirim göster
+        showNotification(`${subtitles.length} embedded subtitles found. Default subtitle loaded.`);
+      } else {
+        // Harici altyazı zaten seçilmiş, sadece bilgi ver
+        showNotification(`${subtitles.length} embedded subtitles found. You can access them from the Embedded Subtitles button.`);
+      }
     } else {
       console.log('No embedded subtitles found');
     }
