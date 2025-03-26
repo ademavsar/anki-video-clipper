@@ -2752,12 +2752,12 @@ function resetAnkiCardModal() {
   document.querySelectorAll('.tab-button').forEach(btn => {
     btn.classList.remove('active');
   });
-  document.querySelector('.tab-button[data-tab="media-tab"]').classList.add('active');
+  document.querySelector('.tab-button[data-tab="content-tab"]').classList.add('active');
   
   document.querySelectorAll('.tab-content').forEach(content => {
     content.classList.remove('active');
   });
-  document.getElementById('media-tab').classList.add('active');
+  document.getElementById('content-tab').classList.add('active');
 }
 
 // Anki modal penceresini kapatma (eski kodun yerine)
