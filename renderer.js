@@ -2041,6 +2041,9 @@ subtitleSettingsBtn.addEventListener('click', () => {
   // Modal pencereyi aç
   subtitleSettingsModal.style.display = 'block';
   
+  // Geçerli ayarları geçici nesneye kopyala
+  tempSubtitleSettings = JSON.parse(JSON.stringify(appState.subtitleSettings));
+  
   // Mevcut ayarları form elemanlarına yükle
   loadCurrentSettings();
   
@@ -2050,13 +2053,21 @@ subtitleSettingsBtn.addEventListener('click', () => {
 
 // Modal penceresini kapatma
 closeModalBtn.addEventListener('click', () => {
+  // Modal'ı kapat ve orijinal ayarlara geri dön
   subtitleSettingsModal.style.display = 'none';
+  
+  // Geçici değişiklikleri iptal et, orijinal ayarları geri yükle
+  applySubtitleStyles();
 });
 
 // Modal dışına tıklama ile kapatma
 window.addEventListener('click', (event) => {
   if (event.target === subtitleSettingsModal) {
+    // Modal'ı kapat ve orijinal ayarlara geri dön
     subtitleSettingsModal.style.display = 'none';
+    
+    // Geçici değişiklikleri iptal et, orijinal ayarları geri yükle
+    applySubtitleStyles();
   }
 });
 
@@ -2078,7 +2089,7 @@ saveSettingsBtn.addEventListener('click', () => {
   // Ayarları localStorage'a kaydet
   saveSubtitleSettings();
   
-  // Altyazı stillerini güncelle
+  // Altyazı stillerini uygula
   applySubtitleStyles();
   
   // Modal pencereyi kapat
@@ -2102,10 +2113,11 @@ resetSettingsBtn.addEventListener('click', () => {
     highlight: true
   };
   
-  appState.subtitleSettings = defaultSettings;
+  // Varsayılan değerleri geçici ayarlara uygula (appState'e değil)
+  tempSubtitleSettings = defaultSettings;
   
-  // Form elemanlarını güncelle
-  loadCurrentSettings();
+  // Form elemanlarını varsayılan değerlerle güncelle
+  loadTempSettings();
   
   // Önizlemeyi güncelle
   updateSubtitlePreview();
@@ -2146,13 +2158,8 @@ fontSizeInput.addEventListener('wheel', (e) => {
   // Önizlemeyi güncelle
   updateSubtitlePreview();
   
-  // Gerçek zamanlı olarak font boyutunu da güncelle
-  appState.subtitleSettings.fontSize = newValue;
-  
   // Eğer aktif bir altyazı varsa stilini güncelle
-  if (videoSubtitle && videoSubtitle.textContent.trim()) {
-    applySubtitleStyles();
-  }
+  // Kodu kaldırdık, çünkü artık Save butonuna basıldığında değişiklikler uygulanacak
 });
 
 // Arkaplan opaklık değerini göster
@@ -2184,50 +2191,65 @@ bgOpacityInput.addEventListener('wheel', (e) => {
   // Önizlemeyi güncelle
   updateSubtitlePreview();
   
-  // Gerçek zamanlı olarak arkaplan opaklığını da güncelle
-  appState.subtitleSettings.bgOpacity = roundedValue;
-  
   // Eğer aktif bir altyazı varsa stilini güncelle
-  if (videoSubtitle && videoSubtitle.textContent.trim()) {
-    applySubtitleStyles();
-  }
+  // Kodu kaldırdık, çünkü artık Save butonuna basıldığında değişiklikler uygulanacak
 });
 
 // Mevcut ayarları form elemanlarına yükle
 function loadCurrentSettings() {
-  fontSizeInput.value = appState.subtitleSettings.fontSize;
-  fontSizeValue.textContent = `${appState.subtitleSettings.fontSize}px`;
+  // Geçici ayarlara appState'den değerleri kopyala
+  tempSubtitleSettings = JSON.parse(JSON.stringify(appState.subtitleSettings));
   
-  fontFamilySelect.value = appState.subtitleSettings.fontFamily;
-  fontBoldCheckbox.checked = appState.subtitleSettings.fontBold;
-  fontItalicCheckbox.checked = appState.subtitleSettings.fontItalic;
-  fontColorInput.value = appState.subtitleSettings.fontColor;
-  bgColorInput.value = appState.subtitleSettings.bgColor;
+  // Form elemanlarını güncelle
+  loadTempSettings();
+}
+
+// Geçici ayarları form elemanlarına yükle
+function loadTempSettings() {
+  fontSizeInput.value = tempSubtitleSettings.fontSize;
+  fontSizeValue.textContent = `${tempSubtitleSettings.fontSize}px`;
   
-  bgOpacityInput.value = appState.subtitleSettings.bgOpacity;
-  const opacityPercent = Math.round(appState.subtitleSettings.bgOpacity * 100);
+  fontFamilySelect.value = tempSubtitleSettings.fontFamily;
+  fontBoldCheckbox.checked = tempSubtitleSettings.fontBold;
+  fontItalicCheckbox.checked = tempSubtitleSettings.fontItalic;
+  fontColorInput.value = tempSubtitleSettings.fontColor;
+  bgColorInput.value = tempSubtitleSettings.bgColor;
+  
+  bgOpacityInput.value = tempSubtitleSettings.bgOpacity;
+  const opacityPercent = Math.round(tempSubtitleSettings.bgOpacity * 100);
   bgOpacityValue.textContent = `${opacityPercent}%`;
   
   // Background width (otomatik veya sabit)
-  if (appState.subtitleSettings.bgWidth) {
-    bgWidthSelect.value = appState.subtitleSettings.bgWidth;
+  if (tempSubtitleSettings.bgWidth) {
+    bgWidthSelect.value = tempSubtitleSettings.bgWidth;
   } else {
     // Eski sürümlerde bu ayar olmayabilir, varsayılan olarak auto ayarla
     bgWidthSelect.value = 'auto';
-    appState.subtitleSettings.bgWidth = 'auto';
+    tempSubtitleSettings.bgWidth = 'auto';
   }
   
-  verticalPositionInput.value = appState.subtitleSettings.verticalPosition;
-  verticalPositionValue.textContent = `${appState.subtitleSettings.verticalPosition}%`;
+  verticalPositionInput.value = tempSubtitleSettings.verticalPosition;
+  verticalPositionValue.textContent = `${tempSubtitleSettings.verticalPosition}%`;
   
-  autoScrollCheckbox.checked = appState.subtitleSettings.autoScroll;
-  highlightCheckbox.checked = appState.subtitleSettings.highlight;
+  autoScrollCheckbox.checked = tempSubtitleSettings.autoScroll;
+  highlightCheckbox.checked = tempSubtitleSettings.highlight;
 }
 
 // Önizlemeyi güncelle
 function updateSubtitlePreview() {
   // Seçili sahne varmı kontrol et
   if (appState.originalCenterIndex === undefined) return;
+  
+  // Form değerlerini geçici ayarlar nesnesine aktar
+  tempSubtitleSettings.fontSize = parseInt(fontSizeInput.value);
+  tempSubtitleSettings.fontFamily = fontFamilySelect.value;
+  tempSubtitleSettings.fontBold = fontBoldCheckbox.checked;
+  tempSubtitleSettings.fontItalic = fontItalicCheckbox.checked;
+  tempSubtitleSettings.fontColor = fontColorInput.value;
+  tempSubtitleSettings.bgColor = bgColorInput.value;
+  tempSubtitleSettings.bgOpacity = parseFloat(bgOpacityInput.value);
+  tempSubtitleSettings.bgWidth = bgWidthSelect.value;
+  tempSubtitleSettings.verticalPosition = parseInt(verticalPositionInput.value);
   
   // Burada yalnızca merkez sahnedeki altyazı önizlemesini göster
   const centerIndex = appState.originalCenterIndex;
@@ -2242,24 +2264,27 @@ function updateSubtitlePreview() {
   
   subtitlePreview.textContent = previewText;
   
-  // Altyazı stillerini uygula
-  applySubtitleStyles();
+  // Geçici ayarlarla altyazı önizleme stillerini uygula
+  applyPreviewStyles();
+}
+
+// Önizleme için stilleri uygula (modal içinde)
+function applyPreviewStyles() {
+  if (!videoSubtitle || !subtitlePreview) return;
   
-  // Önizleme stillerini de güncelle
-  subtitlePreview.style.fontSize = `${appState.subtitleSettings.fontSize}px`;
-  subtitlePreview.style.fontFamily = appState.subtitleSettings.fontFamily;
-  subtitlePreview.style.fontWeight = appState.subtitleSettings.fontBold ? 'bold' : 'normal';
-  subtitlePreview.style.fontStyle = appState.subtitleSettings.fontItalic ? 'italic' : 'normal';
-  subtitlePreview.style.color = appState.subtitleSettings.fontColor;
+  // Önizleme stili
+  subtitlePreview.style.fontSize = `${tempSubtitleSettings.fontSize}px`;
+  subtitlePreview.style.fontFamily = tempSubtitleSettings.fontFamily;
+  subtitlePreview.style.fontWeight = tempSubtitleSettings.fontBold ? 'bold' : 'normal';
+  subtitlePreview.style.fontStyle = tempSubtitleSettings.fontItalic ? 'italic' : 'normal';
+  subtitlePreview.style.color = tempSubtitleSettings.fontColor;
   subtitlePreview.style.backgroundColor = hexToRgba(
-    appState.subtitleSettings.bgColor, 
-    appState.subtitleSettings.bgOpacity
+    tempSubtitleSettings.bgColor, 
+    tempSubtitleSettings.bgOpacity
   );
   
   // Arka plan genişliği ayarını önizlemeye de uygula
-  const bgWidth = appState.subtitleSettings.bgWidth || 'auto';
-  
-  if (bgWidth === 'auto') {
+  if (tempSubtitleSettings.bgWidth === 'auto') {
     // Otomatik genişlik - metin genişliğine uyum sağlar
     subtitlePreview.style.width = 'auto';
     subtitlePreview.style.display = 'inline-block';
@@ -2267,6 +2292,36 @@ function updateSubtitlePreview() {
     // Sabit genişlik - tüm genişliği kaplar
     subtitlePreview.style.width = '90%';
     subtitlePreview.style.display = 'block';
+  }
+  
+  // Modal açıkken ana video alanındaki önizleme için de geçici stilleri uygula
+  if (subtitleSettingsModal.style.display === 'block') {
+    videoSubtitle.style.fontSize = `${tempSubtitleSettings.fontSize}px`;
+    videoSubtitle.style.fontFamily = tempSubtitleSettings.fontFamily;
+    videoSubtitle.style.fontWeight = tempSubtitleSettings.fontBold ? 'bold' : 'normal';
+    videoSubtitle.style.fontStyle = tempSubtitleSettings.fontItalic ? 'italic' : 'normal';
+    videoSubtitle.style.color = tempSubtitleSettings.fontColor;
+    videoSubtitle.style.backgroundColor = hexToRgba(
+      tempSubtitleSettings.bgColor, 
+      tempSubtitleSettings.bgOpacity
+    );
+    
+    // Arka plan genişliği ayarını videoya da uygula
+    if (tempSubtitleSettings.bgWidth === 'auto') {
+      videoSubtitle.style.width = 'auto';
+      videoSubtitle.style.left = '50%';
+      videoSubtitle.style.transform = 'translateX(-50%)';
+      videoSubtitle.style.right = 'auto';
+      videoSubtitle.style.maxWidth = '80%';
+    } else {
+      videoSubtitle.style.width = '80%';
+      videoSubtitle.style.left = '10%';
+      videoSubtitle.style.right = '10%';
+      videoSubtitle.style.transform = 'none';
+    }
+    
+    videoSubtitle.style.top = `${tempSubtitleSettings.verticalPosition}%`;
+    videoSubtitle.style.bottom = 'auto';
   }
 }
 
@@ -2570,14 +2625,15 @@ verticalPositionInput.addEventListener('input', () => {
   verticalPositionValue.textContent = `${position}%`;
   updateSubtitlePreview();
   
+  // Aşağıdaki kodları kaldırıyoruz, çünkü artık Save butonuna basıldığında değişiklikler uygulanacak
   // Gerçek zamanlı olarak altyazı konumunu da güncelle
-  appState.subtitleSettings.verticalPosition = parseInt(position);
+  // appState.subtitleSettings.verticalPosition = parseInt(position);
   
   // Eğer aktif bir altyazı varsa stilini güncelle
   // Aktif altyazı yoksa hiçbir şey gösterme
-  if (videoSubtitle && videoSubtitle.textContent.trim()) {
-    applySubtitleStyles();
-  }
+  // if (videoSubtitle && videoSubtitle.textContent.trim()) {
+  //   applySubtitleStyles();
+  // }
 });
 
 // Dikey konum slideri üzerinde mouse tekerleği ile ince ayar
@@ -2599,13 +2655,14 @@ verticalPositionInput.addEventListener('wheel', (e) => {
   // Önizlemeyi güncelle
   updateSubtitlePreview();
   
+  // Aşağıdaki kodları kaldırıyoruz, çünkü artık Save butonuna basıldığında değişiklikler uygulanacak
   // Gerçek zamanlı olarak altyazı konumunu da güncelle
-  appState.subtitleSettings.verticalPosition = newValue;
+  // appState.subtitleSettings.verticalPosition = newValue;
   
   // Eğer aktif bir altyazı varsa stilini güncelle
-  if (videoSubtitle && videoSubtitle.textContent.trim()) {
-    applySubtitleStyles();
-  }
+  // if (videoSubtitle && videoSubtitle.textContent.trim()) {
+  //   applySubtitleStyles();
+  // }
 });
 
 // Zaman ayarlama butonları işlevleri
