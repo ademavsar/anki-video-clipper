@@ -124,6 +124,14 @@ function onMouseMove(e) {
   leftPanel.style.width = `${leftPercent}%`;
   rightPanel.style.width = `${rightPercent}%`;
   
+  // Video container ve oynatıcının alanı düzgünce doldurmalarını sağla
+  const videoContainer = document.querySelector('.video-container');
+  const videoPlayer = document.getElementById('video-player');
+  
+  // Boyut değişimlerinin sorunsuz çalışması için
+  videoContainer.style.height = 'auto';
+  videoContainer.style.maxHeight = '100%';
+  
   // Zaman çizelgesini yeniden render et
   if (typeof renderTimeline === 'function') {
     renderTimeline();
