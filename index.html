@@ -321,6 +321,34 @@
     </div>
   </div>
 
+  <!-- Sözlük Modal Penceresi -->
+  <div id="dictionary-modal" class="modal">
+    <div class="modal-content dictionary-modal-content">
+      <div class="modal-header">
+        <h3 id="dictionary-word">Kelime</h3>
+        <span class="close-modal" id="close-dictionary">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="dictionary-content">
+          <div class="dictionary-placeholder">
+            Kelime için bilgiler burada gösterilecek
+          </div>
+          <div class="dictionary-actions">
+            <button id="lookup-google" class="dictionary-action-btn">
+              <i class="fas fa-search"></i> Google'da Ara
+            </button>
+            <button id="lookup-translate" class="dictionary-action-btn">
+              <i class="fas fa-language"></i> Çevir
+            </button>
+            <button id="add-to-anki" class="dictionary-action-btn">
+              <i class="fas fa-plus-circle"></i> Anki'ye Ekle
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="renderer.js"></script>
 </body>
 </html> 

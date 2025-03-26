@@ -823,6 +823,24 @@ body {
   white-space: pre-line;
 }
 
+/* Tıklanabilir altyazı kelimeleri */
+.subtitle-word-container {
+  display: inline-block;
+  margin: 0 1px;
+}
+
+.subtitle-word {
+  cursor: none;
+  display: inline-block;
+  transition: color 0.2s ease;
+  border-bottom: 1px solid transparent;
+}
+
+.subtitle-word-container:hover .subtitle-word {
+  color: #29b6f6;
+  border-bottom: 1px solid #29b6f6;
+}
+
 /* Modal Pencere Stilleri */
 .modal {
   display: none;
@@ -1555,4 +1573,81 @@ body {
 
 .timeline-btn-group:last-child {
   justify-content: flex-end;
+}
+
+/* Sözlük Modal Stilleri */
+.dictionary-modal-content {
+  width: 400px;
+  max-width: 90%;
+  position: relative;
+  z-index: 1001;
+  margin: 20vh auto;
+}
+
+.dictionary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.dictionary-placeholder {
+  padding: 15px;
+  background-color: #222;
+  border-radius: 4px;
+  color: #aaa;
+  text-align: center;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-style: italic;
+}
+
+.dictionary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.dictionary-action-btn {
+  padding: 8px 12px;
+  background-color: #3a3a3a;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.dictionary-action-btn i {
+  font-size: 16px;
+}
+
+.dictionary-action-btn:hover {
+  background-color: #4a4a4a;
+}
+
+#lookup-google:hover {
+  background-color: #4285F4;
+}
+
+#lookup-translate:hover {
+  background-color: #1DE9B6;
+  color: #222;
+}
+
+#add-to-anki:hover {
+  background-color: #5c6bc0;
+}
+
+#dictionary-word {
+  color: #29b6f6;
+  font-weight: bold;
+  font-size: 22px;
+  margin: 0;
 } 

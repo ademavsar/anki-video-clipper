@@ -844,8 +844,64 @@ function updateSubtitleDisplay(activeIndex) {
     videoSubtitle.textContent = '';
     videoSubtitle.style.display = 'none';
   } else {
-    // Altyazıyı video üzerinde göster
-    videoSubtitle.textContent = appState.subtitles[activeIndex].text;
+    // Altyazı metnini kelimelere ayır ve her kelimeyi tıklanabilir yap
+    const subtitleText = appState.subtitles[activeIndex].text;
+    videoSubtitle.innerHTML = ''; // İçeriği temizle
+    
+    // Metni kelimelere böl
+    const words = subtitleText.split(/\s+/);
+    
+    // Her kelime için div oluştur (span değil, daha iyi sınırlar için)
+    words.forEach((word, index) => {
+      const wordContainer = document.createElement('div');
+      wordContainer.className = 'subtitle-word-container';
+      
+      const wordSpan = document.createElement('span');
+      wordSpan.className = 'subtitle-word';
+      wordSpan.textContent = word;
+      
+      // Kelime container'a ekle
+      wordContainer.appendChild(wordSpan);
+      
+      // Olayları container'a ekle (harflere değil)
+      wordContainer.addEventListener('mouseenter', (event) => {
+        // Video çalıyorsa duraklat
+        if (!videoPlayer.paused) {
+          videoPlayer.pause();
+        }
+        // Sözlük penceresini göster
+        showDictionary(word, event);
+      });
+      
+      // Mouse leave için timer kullan (gecikme uygulayarak sık sık oynat/duraklat yapılmasını engelle)
+      let leaveTimer;
+      wordContainer.addEventListener('mouseleave', () => {
+        // Eğer modalın açık kalması isteniyorsa oynatmayı devam ettirme
+        if (wordContainer.dataset.keepOpen === "true") {
+          return;
+        }
+        
+        // Zamanlayıcıyı temizle ve yeni zamanlayıcı ayarla
+        clearTimeout(leaveTimer);
+        leaveTimer = setTimeout(() => {
+          // Videoyu devam ettir
+          if (videoPlayer.paused) {
+            videoPlayer.play();
+          }
+          // Sözlük penceresini kapat
+          dictionaryModal.style.display = 'none';
+        }, 300); // 300ms gecikme ekle
+      });
+      
+      // Kelimeyi altyazıya ekle
+      videoSubtitle.appendChild(wordContainer);
+      
+      // Kelimeler arasına boşluk ekle (son kelimeden sonra boşluk ekleme)
+      if (index < words.length - 1) {
+        videoSubtitle.appendChild(document.createTextNode(' '));
+      }
+    });
+    
     videoSubtitle.style.display = 'block';
     
     // Altyazı stillerini uygula
@@ -858,18 +914,72 @@ function updateSubtitlePreview() {
   // Seçili sahne varmı kontrol et
   if (appState.originalCenterIndex === undefined) return;
   
-  // Burada yalnızca merkez sahnedeki altyazı önizlemesini göster
+  // Burada yalnızca merkez sahnenin altyazı önizlemesini göster
   const centerIndex = appState.originalCenterIndex;
   const centerSubtitle = appState.subtitles[centerIndex];
   
-  // Önizleme olarak yalnızca merkez sahnedeki metni göster
+  // Önizleme olarak yalnızca merkez sahnenin metnini göster
   const previewText = centerSubtitle.text || "Altyazı önizleme metni";
   
+  // Önizleme metni için tıklanabilir kelimeler oluştur
+  const createClickableWords = (container, text) => {
+    container.innerHTML = '';
+    const words = text.split(/\s+/);
+    
+    words.forEach((word, index) => {
+      const wordContainer = document.createElement('div');
+      wordContainer.className = 'subtitle-word-container';
+      
+      const wordSpan = document.createElement('span');
+      wordSpan.className = 'subtitle-word';
+      wordSpan.textContent = word;
+      
+      // Kelime container'a ekle
+      wordContainer.appendChild(wordSpan);
+      
+      // Olayları container'a ekle (harflere değil)
+      wordContainer.addEventListener('mouseenter', (event) => {
+        // Video çalıyorsa duraklat
+        if (!videoPlayer.paused) {
+          videoPlayer.pause();
+        }
+        // Sözlük penceresini göster
+        showDictionary(word, event);
+      });
+      
+      // Mouse leave için timer kullan
+      let leaveTimer;
+      wordContainer.addEventListener('mouseleave', () => {
+        // Eğer modalın açık kalması isteniyorsa oynatmayı devam ettirme
+        if (wordContainer.dataset.keepOpen === "true") {
+          return;
+        }
+        
+        // Zamanlayıcıyı temizle ve yeni zamanlayıcı ayarla
+        clearTimeout(leaveTimer);
+        leaveTimer = setTimeout(() => {
+          // Videoyu devam ettir
+          if (videoPlayer.paused) {
+            videoPlayer.play();
+          }
+          // Sözlük penceresini kapat
+          dictionaryModal.style.display = 'none';
+        }, 300); // 300ms gecikme ekle
+      });
+      
+      container.appendChild(wordContainer);
+      
+      if (index < words.length - 1) {
+        container.appendChild(document.createTextNode(' '));
+      }
+    });
+  };
+  
   // Video ve önizleme altyazılarını güncelle
-  videoSubtitle.textContent = previewText;
+  createClickableWords(videoSubtitle, previewText);
   videoSubtitle.style.display = 'block';
   
-  subtitlePreview.textContent = previewText;
+  createClickableWords(subtitlePreview, previewText);
   
   // Altyazı stillerini uygula
   applySubtitleStyles();
@@ -2240,32 +2350,99 @@ function updateSubtitlePreview() {
   // Seçili sahne varmı kontrol et
   if (appState.originalCenterIndex === undefined) return;
   
-  // Form değerlerini geçici ayarlar nesnesine aktar
-  tempSubtitleSettings.fontSize = parseInt(fontSizeInput.value);
-  tempSubtitleSettings.fontFamily = fontFamilySelect.value;
-  tempSubtitleSettings.fontBold = fontBoldCheckbox.checked;
-  tempSubtitleSettings.fontItalic = fontItalicCheckbox.checked;
-  tempSubtitleSettings.fontColor = fontColorInput.value;
-  tempSubtitleSettings.bgColor = bgColorInput.value;
-  tempSubtitleSettings.bgOpacity = parseFloat(bgOpacityInput.value);
-  tempSubtitleSettings.bgWidth = bgWidthSelect.value;
-  tempSubtitleSettings.verticalPosition = parseInt(verticalPositionInput.value);
-  
-  // Burada yalnızca merkez sahnedeki altyazı önizlemesini göster
+  // Burada yalnızca merkez sahnenin altyazı önizlemesini göster
   const centerIndex = appState.originalCenterIndex;
   const centerSubtitle = appState.subtitles[centerIndex];
   
-  // Önizleme olarak yalnızca merkez sahnedeki metni göster
+  // Önizleme olarak yalnızca merkez sahnenin metnini göster
   const previewText = centerSubtitle.text || "Altyazı önizleme metni";
   
+  // Önizleme metni için tıklanabilir kelimeler oluştur
+  const createClickableWords = (container, text) => {
+    container.innerHTML = '';
+    const words = text.split(/\s+/);
+    
+    words.forEach((word, index) => {
+      const wordContainer = document.createElement('div');
+      wordContainer.className = 'subtitle-word-container';
+      
+      const wordSpan = document.createElement('span');
+      wordSpan.className = 'subtitle-word';
+      wordSpan.textContent = word;
+      
+      // Kelime container'a ekle
+      wordContainer.appendChild(wordSpan);
+      
+      // Olayları container'a ekle (harflere değil)
+      wordContainer.addEventListener('mouseenter', (event) => {
+        // Video çalıyorsa duraklat
+        if (!videoPlayer.paused) {
+          videoPlayer.pause();
+        }
+        // Sözlük penceresini göster
+        showDictionary(word, event);
+      });
+      
+      // Mouse leave için timer kullan
+      let leaveTimer;
+      wordContainer.addEventListener('mouseleave', () => {
+        // Eğer modalın açık kalması isteniyorsa oynatmayı devam ettirme
+        if (wordContainer.dataset.keepOpen === "true") {
+          return;
+        }
+        
+        // Zamanlayıcıyı temizle ve yeni zamanlayıcı ayarla
+        clearTimeout(leaveTimer);
+        leaveTimer = setTimeout(() => {
+          // Videoyu devam ettir
+          if (videoPlayer.paused) {
+            videoPlayer.play();
+          }
+          // Sözlük penceresini kapat
+          dictionaryModal.style.display = 'none';
+        }, 300); // 300ms gecikme ekle
+      });
+      
+      container.appendChild(wordContainer);
+      
+      if (index < words.length - 1) {
+        container.appendChild(document.createTextNode(' '));
+      }
+    });
+  };
+  
   // Video ve önizleme altyazılarını güncelle
-  videoSubtitle.textContent = previewText;
+  createClickableWords(videoSubtitle, previewText);
   videoSubtitle.style.display = 'block';
   
-  subtitlePreview.textContent = previewText;
+  createClickableWords(subtitlePreview, previewText);
   
-  // Geçici ayarlarla altyazı önizleme stillerini uygula
-  applyPreviewStyles();
+  // Altyazı stillerini uygula
+  applySubtitleStyles();
+  
+  // Önizleme stillerini de güncelle
+  subtitlePreview.style.fontSize = `${appState.subtitleSettings.fontSize}px`;
+  subtitlePreview.style.fontFamily = appState.subtitleSettings.fontFamily;
+  subtitlePreview.style.fontWeight = appState.subtitleSettings.fontBold ? 'bold' : 'normal';
+  subtitlePreview.style.fontStyle = appState.subtitleSettings.fontItalic ? 'italic' : 'normal';
+  subtitlePreview.style.color = appState.subtitleSettings.fontColor;
+  subtitlePreview.style.backgroundColor = hexToRgba(
+    appState.subtitleSettings.bgColor, 
+    appState.subtitleSettings.bgOpacity
+  );
+  
+  // Arka plan genişliği ayarını önizlemeye de uygula
+  const bgWidth = appState.subtitleSettings.bgWidth || 'auto';
+  
+  if (bgWidth === 'auto') {
+    // Otomatik genişlik - metin genişliğine uyum sağlar
+    subtitlePreview.style.width = 'auto';
+    subtitlePreview.style.display = 'inline-block';
+  } else {
+    // Sabit genişlik - tüm genişliği kaplar
+    subtitlePreview.style.width = '90%';
+    subtitlePreview.style.display = 'block';
+  }
 }
 
 // Önizleme için stilleri uygula (modal içinde)
@@ -3128,3 +3305,112 @@ subtitleOnBtn.addEventListener('click', () => {
 // Sahne işlemlerini izlemek için bayrak ve kaydetmek için değişkenler
 let isSceneOperation = false;
 let savedCurrentSubtitleIndex = -1;
+
+// Sözlük modal elementleri
+const dictionaryModal = document.getElementById('dictionary-modal');
+const dictionaryWord = document.getElementById('dictionary-word');
+const closeDictionaryBtn = document.getElementById('close-dictionary');
+const lookupGoogleBtn = document.getElementById('lookup-google');
+const lookupTranslateBtn = document.getElementById('lookup-translate');
+const addToAnkiBtn = document.getElementById('add-to-anki');
+
+// ----- Sözlük İşlevleri -----
+
+// Sözlük modalını göster
+function showDictionary(word, event) {
+  // Kelimeyi işle (noktalama işaretlerini temizle)
+  const cleanWord = word.replace(/[.,!?;:'"()]/g, '');
+  
+  // Modal başlığını ayarla
+  dictionaryWord.textContent = cleanWord;
+  
+  // Google ve Çeviri butonlarını güncelle
+  lookupGoogleBtn.onclick = () => {
+    // İleride Google'da arama için kullanılacak
+    console.log(`Google'da arıyor: ${cleanWord}`);
+  };
+  
+  lookupTranslateBtn.onclick = () => {
+    // İleride çeviri için kullanılacak
+    console.log(`Çeviriyor: ${cleanWord}`);
+  };
+  
+  addToAnkiBtn.onclick = () => {
+    // İleride Anki'ye ekleme için kullanılacak
+    console.log(`Anki'ye ekliyor: ${cleanWord}`);
+  };
+  
+  // Modalı fare pozisyonuna göre konumlandır
+  if (event) {
+    const modalContent = dictionaryModal.querySelector('.dictionary-modal-content');
+    
+    // Ekran sınırları içinde kalacak şekilde modalı konumlandır
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const modalWidth = 400; // Modal genişliği
+    const modalHeight = 300; // Tahmini modal yüksekliği
+    
+    // Fare pozisyonu
+    let posX = event.clientX;
+    let posY = event.clientY - 20; // Biraz yukarıda göster
+    
+    // Ekranın sağ kenarından taşmaması için
+    if (posX + modalWidth > viewportWidth) {
+      posX = viewportWidth - modalWidth - 20;
+    }
+    
+    // Ekranın alt kenarından taşmaması için
+    if (posY + modalHeight > viewportHeight) {
+      posY = viewportHeight - modalHeight - 20;
+    }
+    
+    // Modalı konumlandır
+    modalContent.style.position = 'fixed';
+    modalContent.style.top = `${posY}px`;
+    modalContent.style.left = `${posX}px`;
+    modalContent.style.margin = '0';
+    modalContent.style.transform = 'none';
+  }
+  
+  // Modalı göster
+  dictionaryModal.style.display = 'block';
+  
+  // Mouse bırakınca kapatılmaması için modal içinde mouse hareketleri
+  dictionaryModal.onmouseenter = () => {
+    // Mouse modal içinde ise kapatmayı engelle - tüm kelime containerlarını işaretle
+    const subtitleWordContainers = document.querySelectorAll('.subtitle-word-container');
+    subtitleWordContainers.forEach(container => {
+      container.dataset.keepOpen = "true";
+    });
+  };
+  
+  dictionaryModal.onmouseleave = () => {
+    // Mouse modaldan çıkınca kapat
+    dictionaryModal.style.display = 'none';
+    
+    // Video oynatımını devam ettir (300ms sonra, ani geçişi önlemek için)
+    setTimeout(() => {
+      if (videoPlayer.paused) {
+        videoPlayer.play();
+      }
+    }, 300);
+    
+    // Keep open bayrağını kaldır
+    const subtitleWordContainers = document.querySelectorAll('.subtitle-word-container');
+    subtitleWordContainers.forEach(container => {
+      container.dataset.keepOpen = "false";
+    });
+  };
+}
+
+// Sözlük modalını kapat
+closeDictionaryBtn.addEventListener('click', () => {
+  dictionaryModal.style.display = 'none';
+});
+
+// Modal dışına tıklandığında kapat
+window.addEventListener('click', (event) => {
+  if (event.target === dictionaryModal) {
+    dictionaryModal.style.display = 'none';
+  }
+});
