@@ -717,7 +717,7 @@ function createVideoClip(videoPath, startTime, endTime, outputPath, options = {}
           '-i', videoPath.replace(/\\/g, '/'),
           '-vf', scaleFilter,
           '-c:v', 'libvpx-vp9',
-          '-c:a', 'libopus',
+          '-c:a', 'copy',
           '-y', outputPath.replace(/\\/g, '/')
         ];
         
@@ -875,7 +875,7 @@ async function embedAlignedSubtitles(videoPath, startTime, duration, outputPath,
     // ADIM 3: Videoyu düzeltilmiş altyazılarla burn et
     await new Promise((resolve, reject) => {
       // Windows'ta FFmpeg subtitles filtresi için güvenilir format
-      const burnCommand = `ffmpeg -ss ${startTime} -t ${duration} -i "${videoPath}" -vf "${scaleFilter},subtitles=${adjustedSubPath.replace(/\\/g, '/').replace(/:/g, '\\\\:')}" -c:v libvpx-vp9 -c:a libopus -y "${outputPath}"`;
+      const burnCommand = `ffmpeg -ss ${startTime} -t ${duration} -i "${videoPath}" -vf "${scaleFilter},subtitles=${adjustedSubPath.replace(/\\/g, '/').replace(/:/g, '\\\\:')}" -c:v libvpx-vp9 -c:a copy -y "${outputPath}"`;
       
       const { exec } = require('child_process');
       console.log('Komut: ', burnCommand);
@@ -1313,8 +1313,7 @@ async function checkAndConvertAudio(videoPath) {
         const ffmpeg = spawn('ffmpeg', [
           '-i', videoPath,
           '-c:v', 'copy',        // Video kanalını kopyala (kaliteyi koru)
-          '-c:a', 'aac',         // Ses kanalını AAC'ye dönüştür
-          '-b:a', '192k',        // Ses bit hızı
+          '-c:a', 'flac',        // Ses kanalını FLAC'a dönüştür (lossless)
           '-c:s', 'copy',        // Altyazıları kopyala
           '-map', '0',           // Tüm stream'leri dahil et
           '-y',                  // Varolan dosyanın üzerine yaz

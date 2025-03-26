@@ -633,9 +633,11 @@ function updateActiveSubtitle() {
     const currentTime = videoPlayer.currentTime;
     let activeIndex = -1;
     
-    // Yalnızca seçili merkez bölgedeki altyazı aktif olabilir - önemli değişiklik burada
-    // Merkez sahnenin bilgilerini al
-    if (appState.originalCenterIndex !== undefined) {
+    // Klip düzenleme modunda mıyız kontrol et
+    const isInClipEditMode = document.querySelector('.scene-edit-active') !== null;
+    
+    if (isInClipEditMode && appState.originalCenterIndex !== undefined) {
+      // Klip düzenleme modundayız, sadece seçili merkez altyazıyı göster
       const centerIndex = appState.originalCenterIndex;
       const centerSubtitle = appState.subtitles[centerIndex];
       
@@ -647,7 +649,7 @@ function updateActiveSubtitle() {
         activeIndex = -1;
       }
     } else {
-      // Eğer merkez sahne yoksa, normal davranışı uygula
+      // Normal izleme modundayız, tüm altyazıları kontrol et
       for (let i = 0; i < appState.subtitles.length; i++) {
         const subtitle = appState.subtitles[i];
         if (currentTime >= subtitle.startTime && currentTime <= subtitle.endTime) {
