@@ -667,97 +667,242 @@ function createVideoClip(videoPath, startTime, endTime, outputPath, options = {}
         }
       }
       
-      // FFmpeg komutu - DÜZELTME: Önceki halinde çıktı dosyası ikinci input olarak ekleniyordu, bu bir hataydı
-      const ffmpegArgs = [];
-      
-      // Altyazı gömme işlemi - input parametrelerini doğru sırada ekliyoruz
+      // Altyazı gömme işlemi
       if (options.embedSubtitles && options.subtitlePath) {
         try {
-          // Önce altyazı dosyasını ekle
-          const formattedVideoPath = videoPath.replace(/\\/g, '/');
-          const formattedSubPath = options.subtitlePath.replace(/\\/g, '/');
-          
           // Altyazı dosyasının varlığını kontrol et
           if (!fs.existsSync(options.subtitlePath)) {
             console.error('Altyazı dosyası bulunamadı:', options.subtitlePath);
             throw new Error('Subtitle file not found');
           }
 
-          // Timeout ve input dosyaları
-          ffmpegArgs.push('-ss', startTime.toString());
-          ffmpegArgs.push('-t', (endTime - startTime).toString());
-          ffmpegArgs.push('-i', formattedVideoPath);
-          
-          // Windows'ta FFmpeg subtitles filtresi için kullanıcının verdiği çalışan formata göre düzenleme
-          // C: sürücü harfindeki : işaretini escape etmek ve path'i tek tırnak içine almak gerekiyor
-          // C: harfindeki : karakterini özel olarak escape et
-          const escapedPath = formattedSubPath.replace(/^([A-Z]):/, '$1\\:');
-          // Tam olarak çalışan formattaki gibi subtitles filtresini oluştur
-          const burnFilter = `${scaleFilter},subtitles='${escapedPath}'`;
-          ffmpegArgs.push('-vf', burnFilter);
-          
-          console.log('Altyazı gömme aktif, filtre:', burnFilter);
-          
-          // Codec parametreleri
-          ffmpegArgs.push('-c:v', 'libvpx-vp9');
-          ffmpegArgs.push('-c:a', 'libopus');
+          // Altyazı zaman damgalarını düzelterek göm
+          embedAlignedSubtitles(videoPath, startTime, endTime - startTime, outputPath, options.subtitlePath, scaleFilter)
+            .then(result => {
+              console.log('Video klip altyazı ile başarıyla oluşturuldu:', outputPath);
+              resolve(outputPath);
+            })
+            .catch(error => {
+              console.error('Altyazı gömme hatası:', error);
+              // Hata durumunda altyazısız devam et
+              console.log('Altyazısız klip oluşturmaya devam ediliyor...');
+              createClipWithoutSubtitles();
+            });
         } catch (error) {
           console.error('Altyazı parametreleri hazırlanırken hata:', error);
           // Hata durumunda altyazısız devam et
-          ffmpegArgs.push('-ss', startTime.toString());
-          ffmpegArgs.push('-t', (endTime - startTime).toString());
-          ffmpegArgs.push('-i', videoPath.replace(/\\/g, '/'));
-          ffmpegArgs.push('-vf', scaleFilter);
-          ffmpegArgs.push('-c:v', 'libvpx-vp9');
-          ffmpegArgs.push('-c:a', 'libopus');
+          createClipWithoutSubtitles();
         }
       } else {
-        // Altyazı yoksa normal parametreler
-        ffmpegArgs.push('-ss', startTime.toString());
-        ffmpegArgs.push('-t', (endTime - startTime).toString());
-        ffmpegArgs.push('-i', videoPath.replace(/\\/g, '/'));
-        ffmpegArgs.push('-vf', scaleFilter);
-        ffmpegArgs.push('-c:v', 'libvpx-vp9');
-        ffmpegArgs.push('-c:a', 'libopus');
+        // Altyazı yoksa normal klip oluştur
+        createClipWithoutSubtitles();
       }
       
-      // Çıktı dosyası ve overwrite parametresi
-      ffmpegArgs.push('-y', outputPath.replace(/\\/g, '/'));
-      
-      console.log('FFmpeg komutu:', 'ffmpeg', ffmpegArgs.join(' '));
-      
-      // FFmpeg işlemini başlat
-      const ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
-      
-      // Çıktıları topla
-      let stdoutData = '';
-      let stderrData = '';
-      
-      ffmpegProcess.stdout.on('data', (data) => {
-        stdoutData += data.toString();
-      });
-      
-      ffmpegProcess.stderr.on('data', (data) => {
-        stderrData += data.toString();
-      });
-      
-      // İşlem tamamlandığında
-      ffmpegProcess.on('close', (code) => {
-        if (code === 0) {
-          console.log('Video klip başarıyla oluşturuldu:', outputPath);
-          resolve(outputPath);
-        } else {
-          console.error('FFmpeg hatası:', stderrData);
-          reject(new Error(`FFmpeg işlemi başarısız oldu (kod: ${code}): ${stderrData}`));
-        }
-      });
-      
-      ffmpegProcess.on('error', (err) => {
-        console.error('FFmpeg başlatma hatası:', err);
-        reject(err);
-      });
+      // Altyazısız klip oluşturma
+      function createClipWithoutSubtitles() {
+        const ffmpegArgs = [
+          '-ss', startTime.toString(),
+          '-t', (endTime - startTime).toString(),
+          '-i', videoPath.replace(/\\/g, '/'),
+          '-vf', scaleFilter,
+          '-c:v', 'libvpx-vp9',
+          '-c:a', 'libopus',
+          '-y', outputPath.replace(/\\/g, '/')
+        ];
+        
+        console.log('FFmpeg komutu:', 'ffmpeg', ffmpegArgs.join(' '));
+        
+        // FFmpeg işlemini başlat
+        const ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
+        
+        // Çıktıları topla
+        let stdoutData = '';
+        let stderrData = '';
+        
+        ffmpegProcess.stdout.on('data', (data) => {
+          stdoutData += data.toString();
+        });
+        
+        ffmpegProcess.stderr.on('data', (data) => {
+          stderrData += data.toString();
+        });
+        
+        // İşlem tamamlandığında
+        ffmpegProcess.on('close', (code) => {
+          if (code === 0) {
+            console.log('Video klip başarıyla oluşturuldu:', outputPath);
+            resolve(outputPath);
+          } else {
+            console.error('FFmpeg hatası:', stderrData);
+            reject(new Error(`FFmpeg işlemi başarısız oldu (kod: ${code}): ${stderrData}`));
+          }
+        });
+        
+        ffmpegProcess.on('error', (err) => {
+          console.error('FFmpeg başlatma hatası:', err);
+          reject(err);
+        });
+      }
     }
   });
+}
+
+// Altyazıları doğru zaman diliminde video klibine gömmek için yeni fonksiyon
+async function embedAlignedSubtitles(videoPath, startTime, duration, outputPath, subtitlePath, scaleFilter) {
+  const tempDir = path.dirname(outputPath);
+  const tempSubPath = path.join(tempDir, `_temp_sub_${Date.now()}.srt`);
+  const adjustedSubPath = path.join(tempDir, `_adjusted_sub_${Date.now()}.srt`);
+  
+  try {
+    // DOSYA YOLLARI İÇİN GELİŞTİRİLMİŞ KAÇIŞ KODLARI
+    const formattedVideoPath = videoPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+    const formattedSubtitlePath = subtitlePath ? subtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:') : '';
+    const formattedTempSubPath = tempSubPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+    const formattedAdjustedSubPath = adjustedSubPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+    const formattedOutputPath = outputPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+    
+    console.log('Altyazı düzenleme işlemi başlıyor (geliştirilmiş sürüm)...');
+    
+    // ADIM 1: Altyazı çıkartma işlemi - BASH SCRIPT KULLANARAK
+    // Bu yaklaşım, daha tutarlı sonuçlar verir ve Windows dosya yolu sorunlarını engeller
+    await new Promise((resolve, reject) => {
+      const extractCommand = subtitlePath 
+        ? `ffmpeg -i "${subtitlePath}" -c:s srt -y "${tempSubPath}"`
+        : `ffmpeg -i "${videoPath}" -map 0:s:0 -c:s srt -y "${tempSubPath}"`;
+      
+      const { exec } = require('child_process');
+      console.log('Komut: ', extractCommand);
+      
+      exec(extractCommand, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Altyazı çıkartma hatası: ${error.message}`);
+          reject(error);
+          return;
+        }
+        console.log('Altyazı dosyası başarıyla çıkartıldı');
+        resolve();
+      });
+    });
+    
+    // ADIM 2: Altyazıları özelleştirme (metinsel olarak işle)
+    await new Promise((resolve, reject) => {
+      try {
+        // Dosyayı oku
+        const content = fs.readFileSync(tempSubPath, 'utf8');
+        
+        // Satır sonlarını normalize et
+        const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        
+        // Altyazıları böl ve işle
+        const blocks = normalizedContent.split('\n\n');
+        const adjustedBlocks = blocks.map(block => {
+          const lines = block.split('\n');
+          
+          // Altyazı numarası ve metin satırlarını koru
+          if (lines.length < 2) return block;
+          
+          // Zaman çizgisini bul ve güncelle
+          const timelineIndex = lines.findIndex(line => 
+            line.match(/\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}/)
+          );
+          
+          if (timelineIndex === -1) return block;
+          
+          // Zaman çizgisini ayrıştır
+          const timeMatch = lines[timelineIndex].match(
+            /(\d{2}):(\d{2}):(\d{2}),(\d{3}) --> (\d{2}):(\d{2}):(\d{2}),(\d{3})/
+          );
+          
+          if (!timeMatch) return block;
+          
+          // Zamanları saniyeye çevir
+          const startTimeInSeconds = 
+            parseInt(timeMatch[1]) * 3600 + 
+            parseInt(timeMatch[2]) * 60 + 
+            parseInt(timeMatch[3]) + 
+            parseInt(timeMatch[4]) / 1000;
+          
+          const endTimeInSeconds = 
+            parseInt(timeMatch[5]) * 3600 + 
+            parseInt(timeMatch[6]) * 60 + 
+            parseInt(timeMatch[7]) + 
+            parseInt(timeMatch[8]) / 1000;
+          
+          // Zamanları videoyu kırptığımız başlangıç ​​zamanına göre ayarla
+          const adjustedStartTime = Math.max(0, startTimeInSeconds - startTime);
+          const adjustedEndTime = Math.max(0, endTimeInSeconds - startTime);
+          
+          // Eğer her iki zaman da negatifse, bu altyazı klip dışında demektir
+          if (adjustedEndTime <= 0) return null;
+          
+          // Zamanları tekrar timecode formatına dönüştür
+          const formatTime = (seconds) => {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            const ms = Math.floor((seconds % 1) * 1000);
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
+          };
+          
+          // Yeni zaman çizgisini oluştur
+          lines[timelineIndex] = `${formatTime(adjustedStartTime)} --> ${formatTime(adjustedEndTime)}`;
+          
+          // Bloğu geri birleştir
+          return lines.join('\n');
+        }).filter(Boolean); // null değerleri kaldır
+        
+        // Yeni dosyaya yaz
+        fs.writeFileSync(adjustedSubPath, adjustedBlocks.join('\n\n'));
+        console.log('Altyazı zamanları başarıyla ayarlandı:', adjustedSubPath);
+        resolve();
+      } catch (error) {
+        console.error('Altyazı düzenleme hatası:', error);
+        reject(error);
+      }
+    });
+    
+    // ADIM 3: Videoyu düzeltilmiş altyazılarla burn et
+    await new Promise((resolve, reject) => {
+      // Windows'ta FFmpeg subtitles filtresi için güvenilir format
+      const burnCommand = `ffmpeg -ss ${startTime} -t ${duration} -i "${videoPath}" -vf "${scaleFilter},subtitles=${adjustedSubPath.replace(/\\/g, '/').replace(/:/g, '\\\\:')}" -c:v libvpx-vp9 -c:a libopus -y "${outputPath}"`;
+      
+      const { exec } = require('child_process');
+      console.log('Komut: ', burnCommand);
+      
+      exec(burnCommand, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Video oluşturma hatası: ${error.message}`);
+          reject(error);
+          return;
+        }
+        console.log('Video başarıyla oluşturuldu (düzenlenmiş altyazılar ile)');
+        resolve();
+      });
+    });
+    
+    // Geçici dosyaları temizle
+    try {
+      if (fs.existsSync(tempSubPath)) fs.unlinkSync(tempSubPath);
+      if (fs.existsSync(adjustedSubPath)) fs.unlinkSync(adjustedSubPath);
+      console.log('Geçici altyazı dosyaları temizlendi');
+    } catch (error) {
+      console.warn('Geçici dosyalar temizlenirken hata:', error);
+    }
+    
+    return outputPath;
+  } catch (error) {
+    console.error('embedAlignedSubtitles hatası:', error);
+    
+    // Hata durumunda geçici dosyaları temizlemeye çalış
+    try {
+      if (fs.existsSync(tempSubPath)) fs.unlinkSync(tempSubPath);
+      if (fs.existsSync(adjustedSubPath)) fs.unlinkSync(adjustedSubPath);
+    } catch (cleanupError) {
+      console.warn('Geçici dosyalar temizlenirken hata:', cleanupError);
+    }
+    
+    throw error;
+  }
 }
 
 // Altyazı (subtitle) klip oluşturma fonksiyonu
