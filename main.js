@@ -715,9 +715,10 @@ function createVideoClip(videoPath, startTime, endTime, outputPath, options = {}
           '-ss', startTime.toString(),
           '-t', (endTime - startTime).toString(),
           '-i', videoPath.replace(/\\/g, '/'),
+          '-threads', '0',  // Maksimum CPU çekirdeği kullanımı
           '-vf', scaleFilter,
           '-c:v', 'libvpx-vp9',
-          '-c:a', 'copy',
+          '-c:a', 'libopus',
           '-y', outputPath.replace(/\\/g, '/')
         ];
         
@@ -875,7 +876,7 @@ async function embedAlignedSubtitles(videoPath, startTime, duration, outputPath,
     // ADIM 3: Videoyu düzeltilmiş altyazılarla burn et
     await new Promise((resolve, reject) => {
       // Windows'ta FFmpeg subtitles filtresi için güvenilir format
-      const burnCommand = `ffmpeg -ss ${startTime} -t ${duration} -i "${videoPath}" -vf "${scaleFilter},subtitles=${adjustedSubPath.replace(/\\/g, '/').replace(/:/g, '\\\\:')}" -c:v libvpx-vp9 -c:a copy -y "${outputPath}"`;
+      const burnCommand = `ffmpeg -ss ${startTime} -t ${duration} -i "${videoPath}" -threads 0 -vf "${scaleFilter},subtitles=${adjustedSubPath.replace(/\\/g, '/').replace(/:/g, '\\\\:')}" -c:v libvpx-vp9 -c:a libopus -y "${outputPath}"`;
       
       const { exec } = require('child_process');
       console.log('Komut: ', burnCommand);
@@ -944,6 +945,7 @@ function extractSubtitleClip(videoPath, startTime, endTime, outputPath, subtitle
         vttArgs = [
           '-ss', startTime.toString(),
           '-i', formattedSubtitlePath,
+          '-threads', '0',  // Maksimum CPU çekirdeği kullanımı
           '-t', (endTime - startTime).toString(),
           '-c:s', 'webvtt',
           '-y',
@@ -993,6 +995,7 @@ function extractSubtitleClip(videoPath, startTime, endTime, outputPath, subtitle
       vttArgs = [
         '-ss', startTime.toString(),
         '-i', formattedVideoPath,
+        '-threads', '0',  // Maksimum CPU çekirdeği kullanımı
         '-t', (endTime - startTime).toString(),
         '-map', `0:s:${subtitleIndex}`,
         '-c:s', 'webvtt',
@@ -1312,6 +1315,7 @@ async function checkAndConvertAudio(videoPath) {
         
         const ffmpeg = spawn('ffmpeg', [
           '-i', videoPath,
+          '-threads', '0',  // Maksimum CPU çekirdeği kullanımı
           '-c:v', 'copy',        // Video kanalını kopyala (kaliteyi koru)
           '-c:a', 'flac',        // Ses kanalını FLAC'a dönüştür (lossless)
           '-c:s', 'copy',        // Altyazıları kopyala
