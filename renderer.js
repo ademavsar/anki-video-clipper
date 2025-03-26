@@ -295,6 +295,11 @@ welcomeScreen.addEventListener('drop', async (e) => {
       // Yükleme göstergesini gizle
       hideLoadingIndicator();
       
+      // Video yüklendikten sonra otomatik oynat
+      videoPlayer.onloadeddata = function() {
+        videoPlayer.play();
+      };
+      
       // Dahili altyazıları kontrol et
       checkEmbeddedSubtitles(videoPath);
     } catch (error) {
@@ -415,6 +420,11 @@ selectMediaFilesBtn.addEventListener('click', async () => {
           videoPlayer.src = `file://${convertedPath}`;
         }
         
+        // Video yüklendikten sonra otomatik oynat
+        videoPlayer.onloadeddata = function() {
+          videoPlayer.play();
+        };
+        
         // Yükleme göstergesini gizle
         hideLoadingIndicator();
         
@@ -424,6 +434,12 @@ selectMediaFilesBtn.addEventListener('click', async () => {
         console.error("Video hazırlama hatası:", error);
         // Hata durumunda orijinal dosyayı kullan
         videoPlayer.src = `file://${result.videoPath}`;
+        
+        // Video yüklendikten sonra otomatik oynat
+        videoPlayer.onloadeddata = function() {
+          videoPlayer.play();
+        };
+        
         hideLoadingIndicator();
       }
     }
