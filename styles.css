@@ -676,23 +676,25 @@ body {
 }
 
 /* Video Altyazı Stili */
-.video-subtitle {
+#video-subtitle {
   position: absolute;
+  bottom: 30px;
   left: 0;
   right: 0;
   text-align: center;
   color: white;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: bold;
-  text-shadow: 0 0 4px black, 0 0 4px black, 0 0 4px black, 0 0 4px black;
-  padding: 10px;
-  z-index: 10;
-  pointer-events: none; /* Tıklamaları video oynatıcıya geçir */
-  background-color: rgba(0, 0, 0, 0.5);
+  padding: 6px 12px;
+  line-height: 1.5;
+  background-color: rgba(0, 0, 0, 0.7);
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+  z-index: 20;
   max-width: 80%;
   margin: 0 auto;
-  border-radius: 4px;
-  /* Dikey pozisyonlamayı JS ile yapıyoruz */
+  border-radius: 2px;
+  transition: top 0.3s;
+  white-space: pre-line;
 }
 
 /* Modal Pencere Stilleri */

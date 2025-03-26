@@ -1194,7 +1194,7 @@ function parseSrtContent(content) {
       parseInt(timeMatch[8]) / 1000; // milisaniye
     
     // Altyazı metnini birleştir (3. satırdan itibaren)
-    let text = lines.slice(2).join(' ').trim();
+    let text = lines.slice(2).join('\n').trim();
     
     // HTML taglarını temizle (<i>, </i> vb.)
     text = text.replace(/<[^>]*>/g, '');

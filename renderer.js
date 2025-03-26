@@ -762,6 +762,7 @@ function renderSubtitleList(searchTerm = '') {
     
     const textSpan = document.createElement('span');
     textSpan.className = 'subtitle-text';
+    textSpan.style.whiteSpace = 'pre-line';
     
     // Arama terimi varsa, eşleşen metni vurgula
     if (searchTerm && subtitle.text.toLowerCase().includes(searchTerm.toLowerCase())) {
@@ -2070,6 +2071,7 @@ function applySubtitleStyles() {
     appState.subtitleSettings.bgColor, 
     appState.subtitleSettings.bgOpacity
   );
+  videoSubtitle.style.whiteSpace = 'pre-line';
   
   // Dikey konum - 0% = en üst, 100% = en alt
   const verticalPosition = appState.subtitleSettings.verticalPosition;
