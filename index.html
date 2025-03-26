@@ -55,8 +55,9 @@
             </div>
             <div class="timeline-controls">
               <div class="timeline-btn-group">
-                <button id="prev-scene-add-btn" class="timeline-btn">Add Previous Scene</button>
-                <button id="prev-scene-remove-btn" class="timeline-btn">Remove Previous Scene</button>
+                <button id="prev-scene-add-btn" class="icon-btn" title="Add Previous"><i class="fas fa-plus-circle"></i></button>
+                <button id="prev-scene-remove-btn" class="icon-btn" title="Remove Previous"><i class="fas fa-minus-circle"></i></button>
+                <span class="scene-label">Prev</span>
               </div>
               <div class="timeline-zoom-controls">
                 <button id="zoom-out-btn" class="timeline-zoom-btn" title="Zoom Out">−</button>
@@ -64,8 +65,9 @@
                 <button id="zoom-in-btn" class="timeline-zoom-btn" title="Zoom In">+</button>
               </div>
               <div class="timeline-btn-group">
-                <button id="next-scene-add-btn" class="timeline-btn">Add Next Scene</button>
-                <button id="next-scene-remove-btn" class="timeline-btn">Remove Next Scene</button>
+                <span class="scene-label">Next</span>
+                <button id="next-scene-add-btn" class="icon-btn" title="Add Next"><i class="fas fa-plus-circle"></i></button>
+                <button id="next-scene-remove-btn" class="icon-btn" title="Remove Next"><i class="fas fa-minus-circle"></i></button>
               </div>
             </div>
           </div>
@@ -197,6 +199,7 @@
           <button class="tab-button active" data-tab="media-tab">Media</button>
           <button class="tab-button" data-tab="content-tab">Content</button>
           <button class="tab-button" data-tab="settings-tab">Settings</button>
+          <button class="tab-button" data-tab="advanced-tab">Advanced</button>
         </div>
         
         <form class="anki-form">
@@ -264,6 +267,10 @@
               <label for="anki-tags">Tags:</label>
               <input type="text" id="anki-tags" placeholder="Enter tags (comma separated)..." tabindex="7">
             </div>
+          </div>
+          
+          <!-- Advanced Sekmesi -->
+          <div class="tab-content" id="advanced-tab">
           </div>
         </form>
       </div>
