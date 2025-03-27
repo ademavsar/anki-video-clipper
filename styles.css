@@ -823,6 +823,158 @@ body {
   white-space: pre-line;
 }
 
+/* Video Vocabulary Tooltip Stili */
+.vocab-tooltip {
+  position: absolute;
+  bottom: 200px; /* Increase distance from bottom to avoid overlapping with subtitle */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 400px;
+  max-width: 80%;
+  background-color: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 0;
+  border-radius: 4px;
+  z-index: 30;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  display: none;
+  font-size: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(70, 130, 180, 0.7);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: auto; /* Allow mouse interaction with the tooltip */
+}
+
+.vocab-tooltip.visible {
+  opacity: 1;
+}
+
+.vocab-tooltip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background-color: rgba(70, 130, 180, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.vocab-word-info {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.close-vocab-btn {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.close-vocab-btn:hover {
+  opacity: 1;
+}
+
+.vocab-tooltip-content {
+  padding: 12px;
+  line-height: 1.5;
+}
+
+.vocab-row {
+  margin-bottom: 8px;
+  display: flex;
+}
+
+.vocab-label {
+  color: rgba(70, 130, 180, 1);
+  font-weight: bold;
+  width: 70px;
+  flex-shrink: 0;
+}
+
+.vocab-value {
+  flex-grow: 1;
+}
+
+.vocab-example {
+  font-style: italic;
+  color: #ccc;
+  border-left: 3px solid rgba(70, 130, 180, 0.5);
+  padding-left: 8px;
+  margin-top: 8px;
+}
+
+/* Kelime üzerine gelindiğinde */
+.subtitle-word {
+  cursor: pointer;
+  display: inline-block;
+  transition: background-color 0.2s;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+
+.subtitle-word:hover {
+  background-color: rgba(70, 130, 180, 0.5);
+}
+
+/* Full-width input field */
+.full-width-input {
+  width: 100%;
+  padding: 8px;
+  background-color: #3c3c3c;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #f0f0f0;
+  font-size: 14px;
+}
+
+/* Loading indicator for tooltip */
+.tooltip-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 15px;
+}
+
+.tooltip-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Video info bar quick toggle button for tooltip */
+.vocab-tooltip-toggle {
+  background-color: rgba(70, 130, 180, 0.8);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+  padding: 8px 15px;
+}
+
+.vocab-tooltip-toggle.disabled {
+  background-color: rgba(120, 120, 120, 0.8);
+}
+
+.vocab-tooltip-toggle:hover:not(.disabled) {
+  background-color: rgba(50, 100, 150, 0.9);
+}
+
 /* Modal Pencere Stilleri */
 .modal {
   display: none;
@@ -931,15 +1083,19 @@ body {
 
 .setting-item {
   display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
+  align-items: flex-start;
+  margin-bottom: 15px;
 }
 
 .setting-item label {
-  width: 150px;
+  width: 180px;
   font-size: 14px;
   color: #f0f0f0;
+  padding-top: 5px;
+}
+
+.setting-item .setting-control {
+  flex: 1;
 }
 
 .setting-item input[type="range"] {
@@ -1555,4 +1711,117 @@ body {
 
 .timeline-btn-group:last-child {
   justify-content: flex-end;
+}
+
+/* New tooltip style for icon buttons */
+.tooltip-container {
+  position: relative;
+}
+
+.tooltip-container .tooltip-text {
+  visibility: hidden;
+  width: auto;
+  white-space: nowrap;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  text-align: center;
+  border-radius: 4px;
+  padding: 5px 10px;
+  position: absolute;
+  z-index: 200;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.tooltip-container .tooltip-text::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+}
+
+.tooltip-container:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Icon btn state for vocab tooltip */
+#vocab-tooltip-toggle-btn.disabled {
+  color: #777;
+}
+
+/* Improved setting layout styles */
+.setting-control {
+  display: flex;
+  flex-direction: column;
+}
+
+.setting-help-text {
+  font-size: 12px;
+  color: #777;
+  margin-top: 4px;
+}
+
+/* API key input with test button */
+.api-key-input {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.api-key-input input {
+  flex: 1;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.test-btn {
+  background-color: #3a3a3a;
+  color: #ccc;
+  border: 1px solid #555;
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+  height: 36px;
+  width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.test-btn:hover {
+  background-color: #444;
+  color: #fff;
+}
+
+.api-key-status {
+  margin-top: 5px;
+  font-size: 12px;
+  min-height: 16px;
+}
+
+.api-key-status.success {
+  color: #4CAF50;
+}
+
+.api-key-status.error {
+  color: #f44336;
+}
+
+.api-key-status.loading {
+  color: #2196F3;
+}
+
+.api-key-status i {
+  margin-right: 5px;
 } 

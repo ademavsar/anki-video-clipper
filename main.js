@@ -231,6 +231,113 @@ async function invokeAnkiConnect(action, params = {}) {
   }
 }
 
+// OpenAI API ile kelime anlamlarını sorgulama
+async function getWordDefinition(apiKey, word, sentence = null, model = 'gpt-3.5-turbo') {
+  try {
+    // API isteği için sistem tarafından kullanılan prompt
+    let prompt = `Provide the following information for the word "${word}":\n`;
+    if (sentence) {
+      prompt += `In the context of this sentence: "${sentence}"\n`;
+    }
+    prompt += `- Base form (lemma) and part of speech
+- IPA pronunciation (in standard IPA format)
+- Brief English definition (1-2 sentences)
+- Turkish translation
+- A context-aware English example sentence
+
+Format the response exactly like this:
+Word: [original word]
+Base: [lemma] ([part of speech])
+IPA: [IPA]
+English: [brief definition]
+Turkish: [translation]
+Example: [example sentence]`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: model,  // Use the model parameter
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant that provides word definitions, pronunciations, and translations in a specific format.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 500,
+        temperature: 0.3,
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.error) {
+      throw new Error(`OpenAI API error: ${data.error.message}`);
+    }
+    
+    if (!data.choices || data.choices.length === 0) {
+      throw new Error('No response received from OpenAI API');
+    }
+    
+    return data.choices[0].message.content.trim();
+  } catch (error) {
+    console.error('OpenAI API error:', error);
+    throw error;
+  }
+}
+
+// IPC handler for word definition requests
+ipcMain.handle('get-word-definition', async (event, { apiKey, word, sentence, model }) => {
+  try {
+    // Validate inputs
+    if (!apiKey || !apiKey.trim() || !apiKey.startsWith('sk-')) {
+      return { 
+        success: false, 
+        error: 'Invalid API key format. API key should start with "sk-".'
+      };
+    }
+    
+    if (!word || !word.trim()) {
+      return {
+        success: false,
+        error: 'No word provided'
+      };
+    }
+    
+    // Validate word length to prevent abuse
+    if (word.length > 50) {
+      return {
+        success: false,
+        error: 'Word is too long'
+      };
+    }
+    
+    // If sentence is provided, validate it
+    if (sentence && sentence.length > 1000) {
+      // Truncate long sentences
+      sentence = sentence.substring(0, 997) + '...';
+    }
+    
+    // Use default model if none provided or invalid
+    const modelToUse = model && typeof model === 'string' ? model : 'gpt-3.5-turbo';
+    
+    const definition = await getWordDefinition(apiKey, word, sentence, modelToUse);
+    return { success: true, data: definition };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error.message || 'Error fetching word definition'
+    };
+  }
+});
+
 // Anki destelerini getir
 ipcMain.handle('get-anki-decks', async () => {
   try {
@@ -2027,4 +2134,78 @@ ipcMain.handle('log', (event, {level, message}) => {
     return true;
   }
   return false;
+});
+
+// OpenAI API ile kullanılabilir modelleri getir
+async function fetchAvailableModels(apiKey) {
+  try {
+    const response = await fetch('https://api.openai.com/v1/models', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error && error.error.message ? error.error.message : 'Failed to fetch models');
+    }
+    
+    const data = await response.json();
+    
+    // Only include chat models
+    const chatModels = data.data.filter(model => {
+      const id = model.id.toLowerCase();
+      return (id.includes('gpt') && id.includes('turbo')) || 
+             id.includes('gpt-4') || 
+             id.includes('gpt-3.5');
+    });
+    
+    // Sort models - GPT-4 first, then others
+    chatModels.sort((a, b) => {
+      const aId = a.id.toLowerCase();
+      const bId = b.id.toLowerCase();
+      
+      if (aId.includes('gpt-4') && !bId.includes('gpt-4')) return -1;
+      if (!aId.includes('gpt-4') && bId.includes('gpt-4')) return 1;
+      
+      return a.id.localeCompare(b.id);
+    });
+    
+    return { 
+      success: true,
+      models: chatModels.map(model => ({
+        id: model.id,
+        name: model.id
+      }))
+    };
+  } catch (error) {
+    console.error('Error fetching OpenAI models:', error);
+    return { 
+      success: false, 
+      error: error.message || 'Failed to fetch models'
+    };
+  }
+}
+
+// IPC handler for checking API key and fetching models
+ipcMain.handle('check-openai-api-key', async (event, { apiKey }) => {
+  try {
+    if (!apiKey || !apiKey.trim() || !apiKey.startsWith('sk-')) {
+      return { 
+        success: false, 
+        error: 'Invalid API key format. API key should start with "sk-".'
+      };
+    }
+    
+    // Fetch available models to verify key
+    const modelsResult = await fetchAvailableModels(apiKey);
+    return modelsResult;
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error.message || 'Failed to verify API key'
+    };
+  }
 }); 

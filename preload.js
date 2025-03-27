@@ -63,7 +63,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getModelFields: (modelName) => ipcRenderer.invoke('get-model-fields', modelName),
   addAnkiNote: (noteData) => ipcRenderer.invoke('add-anki-note', noteData),
   createClipForAnki: (args) => ipcRenderer.invoke('create-clip-for-anki', args),
-  reloadAnkiData: () => ipcRenderer.invoke('reload-anki-data')
+  reloadAnkiData: () => ipcRenderer.invoke('reload-anki-data'),
+  
+  // Kelime anlamları için OpenAI API entegrasyonu
+  getWordDefinition: (args) => ipcRenderer.invoke('get-word-definition', args),
+  
+  // OpenAI API key doğrulama ve model listesi
+  checkOpenAIApiKey: (args) => ipcRenderer.invoke('check-openai-api-key', args)
 });
 
 // Loglama işlevi

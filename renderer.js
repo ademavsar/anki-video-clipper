@@ -845,7 +845,26 @@ function updateSubtitleDisplay(activeIndex) {
     videoSubtitle.style.display = 'none';
   } else {
     // Altyazıyı video üzerinde göster
-    videoSubtitle.textContent = appState.subtitles[activeIndex].text;
+    const subtitleText = appState.subtitles[activeIndex].text;
+    
+    // Vocabulary tooltip etkinse kelimeler için işlem yap
+    if (vocabTooltipState.enabled) {
+      videoSubtitle.innerHTML = processSubtitleText(subtitleText);
+      
+      // Add event listeners to word spans
+      const wordSpans = videoSubtitle.querySelectorAll('.subtitle-word');
+      wordSpans.forEach(wordSpan => {
+        wordSpan.addEventListener('mouseenter', handleWordInteraction);
+        wordSpan.addEventListener('mouseleave', () => {
+          // Delay hiding to allow moving to the tooltip
+          closeVocabTooltip();
+        });
+      });
+    } else {
+      // Just set the text content if not enabled
+      videoSubtitle.textContent = subtitleText;
+    }
+    
     videoSubtitle.style.display = 'block';
     
     // Altyazı stillerini uygula
@@ -2329,8 +2348,11 @@ function applyPreviewStyles() {
 function applySubtitleStyles() {
   if (!videoSubtitle) return;
   
+  // Check if subtitle is empty (text content or inner HTML if it has spans)
+  const isEmpty = !videoSubtitle.textContent.trim() && !videoSubtitle.innerHTML.trim();
+  
   // Eğer altyazı içeriği boşsa, arka planı gösterme
-  if (!videoSubtitle.textContent.trim()) {
+  if (isEmpty) {
     videoSubtitle.style.display = 'none';
     return;
   }
@@ -2375,6 +2397,15 @@ function applySubtitleStyles() {
   // Video container yüksekliğine göre oranla
   videoSubtitle.style.top = `${verticalPosition}%`;
   videoSubtitle.style.bottom = 'auto';
+  
+  // If vocabulary tooltip is enabled, make sure the word styles are applied
+  if (vocabTooltipState && vocabTooltipState.enabled) {
+    const wordSpans = videoSubtitle.querySelectorAll('.subtitle-word');
+    wordSpans.forEach(span => {
+      span.style.cursor = 'pointer';
+      span.style.transition = 'background-color 0.2s';
+    });
+  }
 }
 
 // Ayarları localStorage'a kaydet
@@ -3128,3 +3159,663 @@ subtitleOnBtn.addEventListener('click', () => {
 // Sahne işlemlerini izlemek için bayrak ve kaydetmek için değişkenler
 let isSceneOperation = false;
 let savedCurrentSubtitleIndex = -1;
+
+// ===== Vocabulary Tooltip Feature =====
+// DOM Elements - declare variables
+let vocabTooltip;
+let vocabTooltipContent;
+let vocabWordInfo;
+let closeVocabTooltipBtn;
+let vocabTooltipToggleBtn;
+let vocabTooltipSettingsBtn;
+
+// Modal Elements - declare variables
+let vocabTooltipSettingsModal;
+let vocabTooltipEnableCheckbox;
+let vocabApiKeyInput;
+let vocabModelSelect;
+let vocabShowIpaCheckbox;
+let vocabShowTurkishCheckbox;
+let vocabShowExampleCheckbox;
+let vocabAutoPauseCheckbox;
+let testApiKeyBtn;
+let apiKeyStatus;
+let saveVocabTooltipSettingsBtn;
+let resetVocabTooltipSettingsBtn;
+let closeVocabTooltipModalBtn;
+
+// Variables for tooltip timing
+let showTooltipTimeout = null;
+let hideTooltipTimeout = null;
+
+// API key verification - debounce and cache
+let apiKeyCheckTimeout = null;
+let lastCheckedApiKey = '';
+let apiKeyCheckInProgress = false;
+
+// Vocabulary tooltip state
+let vocabTooltipState = {
+  enabled: true,
+  apiKey: '',
+  model: '',
+  showIpa: true,
+  showTurkish: true,
+  showExample: true,
+  autoPause: false,
+  activeWord: null,
+  videoWasPlaying: false,
+  models: [],
+  showDelay: 150,  // ms delay before showing tooltip
+  hideDelay: 400   // ms delay before hiding tooltip
+};
+
+// Initialize vocabulary tooltip settings and DOM elements
+function initVocabTooltipSettings() {
+  // Initialize DOM elements
+  vocabTooltip = document.getElementById('vocab-tooltip');
+  vocabTooltipContent = document.querySelector('.vocab-tooltip-content');
+  vocabWordInfo = document.querySelector('.vocab-word-info');
+  closeVocabTooltipBtn = document.getElementById('close-vocab-tooltip');
+  vocabTooltipToggleBtn = document.getElementById('vocab-tooltip-toggle-btn');
+  vocabTooltipSettingsBtn = document.getElementById('vocab-tooltip-settings-btn');
+  
+  // Initialize Modal Elements
+  vocabTooltipSettingsModal = document.getElementById('vocab-tooltip-settings-modal');
+  vocabTooltipEnableCheckbox = document.getElementById('vocab-tooltip-enable');
+  vocabApiKeyInput = document.getElementById('vocab-tooltip-api-key');
+  vocabModelSelect = document.getElementById('vocab-model-select');
+  vocabShowIpaCheckbox = document.getElementById('vocab-show-ipa');
+  vocabShowTurkishCheckbox = document.getElementById('vocab-show-turkish');
+  vocabShowExampleCheckbox = document.getElementById('vocab-show-example');
+  vocabAutoPauseCheckbox = document.getElementById('vocab-auto-pause');
+  testApiKeyBtn = document.getElementById('test-api-key-btn');
+  apiKeyStatus = document.getElementById('api-key-status');
+  saveVocabTooltipSettingsBtn = document.getElementById('save-vocab-tooltip-settings');
+  resetVocabTooltipSettingsBtn = document.getElementById('reset-vocab-tooltip-settings');
+  closeVocabTooltipModalBtn = vocabTooltipSettingsModal.querySelector('.close-modal');
+  
+  // Debug initialization
+  console.log('Initializing vocabulary tooltip settings');
+  
+  // Setup event listeners
+  vocabTooltipToggleBtn.addEventListener('click', toggleVocabTooltip);
+  closeVocabTooltipBtn.addEventListener('click', closeVocabTooltip);
+  
+  // Add special handler for auto-pause checkbox to log changes
+  vocabAutoPauseCheckbox.addEventListener('change', (e) => {
+    console.log(`Auto-pause set to: ${e.target.checked}`);
+  });
+  
+  // Open settings modal
+  vocabTooltipSettingsBtn.addEventListener('click', () => {
+    // Update form values
+    updateVocabTooltipUI();
+    
+    // Show modal
+    vocabTooltipSettingsModal.style.display = 'block';
+  });
+  
+  // Close settings modal
+  closeVocabTooltipModalBtn.addEventListener('click', () => {
+    vocabTooltipSettingsModal.style.display = 'none';
+  });
+  
+  // Save settings
+  saveVocabTooltipSettingsBtn.addEventListener('click', saveVocabTooltipSettings);
+  
+  // Reset settings
+  resetVocabTooltipSettingsBtn.addEventListener('click', resetVocabTooltipSettings);
+  
+  // Allow hovering over the tooltip to keep it open
+  vocabTooltip.addEventListener('mouseenter', () => {
+    if (hideTooltipTimeout) {
+      clearTimeout(hideTooltipTimeout);
+      hideTooltipTimeout = null;
+    }
+  });
+  
+  vocabTooltip.addEventListener('mouseleave', () => {
+    closeVocabTooltip();
+  });
+  
+  // API key testing
+  testApiKeyBtn.addEventListener('click', () => {
+    const apiKey = vocabApiKeyInput.value.trim();
+    if (apiKey) {
+      verifyApiKey(apiKey);
+    }
+  });
+  
+  // API key input event with debounce
+  vocabApiKeyInput.addEventListener('input', handleApiKeyInput);
+  
+  // Try to load settings from localStorage
+  try {
+    const savedSettings = localStorage.getItem('vocabTooltipSettings');
+    if (savedSettings) {
+      vocabTooltipState = JSON.parse(savedSettings);
+      
+      // Add missing properties if needed
+      if (vocabTooltipState.model === undefined) {
+        vocabTooltipState.model = 'gpt-3.5-turbo';
+      }
+      
+      if (vocabTooltipState.models === undefined) {
+        vocabTooltipState.models = [];
+      }
+      
+      // Add delay properties if missing
+      if (vocabTooltipState.showDelay === undefined) {
+        vocabTooltipState.showDelay = 150;
+      }
+      
+      if (vocabTooltipState.hideDelay === undefined) {
+        vocabTooltipState.hideDelay = 400;
+      }
+    }
+  } catch (error) {
+    console.error('Error loading vocabulary tooltip settings:', error);
+  }
+  
+  // Update UI based on loaded settings
+  updateVocabTooltipUI();
+  
+  // If API key is already set, try to verify and fetch models
+  if (vocabTooltipState.apiKey) {
+    verifyApiKey(vocabTooltipState.apiKey, false);
+  }
+}
+
+// Update UI based on settings
+function updateVocabTooltipUI() {
+  // Update toggle button state
+  if (vocabTooltipState.enabled) {
+    vocabTooltipToggleBtn.classList.remove('disabled');
+  } else {
+    vocabTooltipToggleBtn.classList.add('disabled');
+  }
+  
+  // Ensure all settings are properly initialized
+  if (vocabTooltipState.autoPause === undefined) {
+    vocabTooltipState.autoPause = false;
+  }
+  
+  // Update settings modal
+  vocabTooltipEnableCheckbox.checked = vocabTooltipState.enabled;
+  vocabApiKeyInput.value = vocabTooltipState.apiKey || '';
+  vocabShowIpaCheckbox.checked = vocabTooltipState.showIpa;
+  vocabShowTurkishCheckbox.checked = vocabTooltipState.showTurkish;
+  vocabShowExampleCheckbox.checked = vocabTooltipState.showExample;
+  vocabAutoPauseCheckbox.checked = vocabTooltipState.autoPause;
+  
+  // Update model select dropdown
+  updateModelSelect();
+}
+
+// Update model selection dropdown based on available models
+function updateModelSelect() {
+  // Clear existing options
+  vocabModelSelect.innerHTML = '';
+  
+  // If API key is not verified or no models available, show placeholder
+  if (!vocabTooltipState.apiKey || !vocabTooltipState.models || vocabTooltipState.models.length === 0) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'Enter API key to see available models';
+    vocabModelSelect.appendChild(option);
+    return;
+  }
+  
+  // Add models from API
+  vocabTooltipState.models.forEach(model => {
+    const option = document.createElement('option');
+    option.value = model.id;
+    option.textContent = model.name;
+    vocabModelSelect.appendChild(option);
+  });
+  
+  // Select current model
+  if (vocabTooltipState.model) {
+    // Check if the model exists in options
+    let modelExists = false;
+    for (let i = 0; i < vocabModelSelect.options.length; i++) {
+      if (vocabModelSelect.options[i].value === vocabTooltipState.model) {
+        vocabModelSelect.selectedIndex = i;
+        modelExists = true;
+        break;
+      }
+    }
+    
+    // If the model doesn't exist, add it
+    if (!modelExists && vocabTooltipState.model) {
+      const option = document.createElement('option');
+      option.value = vocabTooltipState.model;
+      option.textContent = vocabTooltipState.model;
+      vocabModelSelect.appendChild(option);
+      vocabModelSelect.value = vocabTooltipState.model;
+    }
+  }
+}
+
+// Save settings
+function saveVocabTooltipSettings() {
+  // Update settings from form values
+  vocabTooltipState.enabled = vocabTooltipEnableCheckbox.checked;
+  vocabTooltipState.apiKey = vocabApiKeyInput.value.trim();
+  vocabTooltipState.model = vocabModelSelect.value;
+  vocabTooltipState.showIpa = vocabShowIpaCheckbox.checked;
+  vocabTooltipState.showTurkish = vocabShowTurkishCheckbox.checked;
+  vocabTooltipState.showExample = vocabShowExampleCheckbox.checked;
+  vocabTooltipState.autoPause = vocabAutoPauseCheckbox.checked;
+  
+  // Log the auto-pause setting for debugging
+  console.log(`Saving settings with auto-pause: ${vocabTooltipState.autoPause}`);
+  
+  // Ensure delay properties are preserved
+  vocabTooltipState.showDelay = vocabTooltipState.showDelay || 150;
+  vocabTooltipState.hideDelay = vocabTooltipState.hideDelay || 400;
+  
+  // Save to localStorage
+  localStorage.setItem('vocabTooltipSettings', JSON.stringify(vocabTooltipState));
+  
+  // Update UI
+  updateVocabTooltipUI();
+  
+  // Close modal
+  vocabTooltipSettingsModal.style.display = 'none';
+  
+  // Show notification
+  showNotification('Vocabulary tooltip settings saved successfully.');
+}
+
+// Reset settings to default
+function resetVocabTooltipSettings() {
+  vocabTooltipState = {
+    enabled: true,
+    apiKey: vocabTooltipState.apiKey, // Keep the API key
+    model: 'gpt-3.5-turbo',
+    showIpa: true,
+    showTurkish: true,
+    showExample: true,
+    autoPause: false,
+    activeWord: null,
+    videoWasPlaying: false,
+    models: vocabTooltipState.models,  // Keep the available models
+    showDelay: vocabTooltipState.showDelay || 150,  // Preserve or set default
+    hideDelay: vocabTooltipState.hideDelay || 400   // Preserve or set default
+  };
+  
+  // Update UI
+  updateVocabTooltipUI();
+  
+  // Save to localStorage
+  localStorage.setItem('vocabTooltipSettings', JSON.stringify(vocabTooltipState));
+  
+  // Show notification
+  showNotification('Vocabulary tooltip settings reset to default.');
+}
+
+// Verify OpenAI API key and fetch available models
+async function verifyApiKey(apiKey, showResultInUI = true) {
+  // Skip if already checking or if key is the same as last checked
+  if (apiKeyCheckInProgress || (lastCheckedApiKey === apiKey && vocabTooltipState.models.length > 0)) {
+    return;
+  }
+  
+  // Update UI to show checking status
+  if (showResultInUI) {
+    apiKeyStatus.className = 'api-key-status loading';
+    apiKeyStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying API key...';
+  }
+  
+  apiKeyCheckInProgress = true;
+  lastCheckedApiKey = apiKey;
+  
+  try {
+    const result = await window.electronAPI.checkOpenAIApiKey({ apiKey });
+    
+    if (result.success) {
+      // API key is valid, update available models
+      vocabTooltipState.models = result.models;
+      
+      // Update model select dropdown
+      updateModelSelect();
+      
+      // Show success message if UI update is requested
+      if (showResultInUI) {
+        apiKeyStatus.className = 'api-key-status success';
+        apiKeyStatus.innerHTML = `<i class="fas fa-check-circle"></i> API key valid! ${result.models.length} models available.`;
+      }
+    } else {
+      // API key is invalid
+      if (showResultInUI) {
+        apiKeyStatus.className = 'api-key-status error';
+        apiKeyStatus.innerHTML = `<i class="fas fa-times-circle"></i> ${result.error}`;
+      }
+    }
+  } catch (error) {
+    console.error('Error verifying API key:', error);
+    if (showResultInUI) {
+      apiKeyStatus.className = 'api-key-status error';
+      apiKeyStatus.innerHTML = '<i class="fas fa-times-circle"></i> Error verifying API key. Check console for details.';
+    }
+  } finally {
+    apiKeyCheckInProgress = false;
+  }
+}
+
+// Handle API key input with debounce
+function handleApiKeyInput() {
+  const apiKey = vocabApiKeyInput.value.trim();
+  
+  // Clear previous timeout
+  if (apiKeyCheckTimeout) {
+    clearTimeout(apiKeyCheckTimeout);
+  }
+  
+  // Clear status
+  apiKeyStatus.innerHTML = '';
+  apiKeyStatus.className = 'api-key-status';
+  
+  // Set new timeout
+  if (apiKey && apiKey.startsWith('sk-')) {
+    apiKeyCheckTimeout = setTimeout(() => {
+      verifyApiKey(apiKey);
+    }, 1000); // 1 second debounce
+  } else if (apiKey) {
+    apiKeyStatus.className = 'api-key-status error';
+    apiKeyStatus.innerHTML = '<i class="fas fa-times-circle"></i> Invalid API key format. API key should start with "sk-".';
+  }
+}
+
+// Process subtitle text to make words interactive
+function processSubtitleText(text) {
+  if (!text) return '';
+  
+  // Skip processing if tooltip is disabled
+  if (!vocabTooltipState.enabled) {
+    return text;
+  }
+  
+  // Split text into words while preserving spacing and punctuation
+  // This regex matches words while preserving spacing and punctuation
+  const wordRegex = /\b(\w+)\b/g;
+  
+  // Replace each word with a span element
+  return text.replace(wordRegex, '<span class="subtitle-word" data-word="$1">$1</span>');
+}
+
+// Show tooltip with loading indicator
+function showTooltipLoading() {
+  // Clear any existing hide timeout
+  if (hideTooltipTimeout) {
+    clearTimeout(hideTooltipTimeout);
+    hideTooltipTimeout = null;
+  }
+  
+  // Set loading content
+  vocabTooltipContent.innerHTML = `
+    <div class="tooltip-loading">
+      <div class="tooltip-loading-spinner"></div>
+    </div>
+  `;
+  
+  // Show with delay
+  if (showTooltipTimeout) {
+    clearTimeout(showTooltipTimeout);
+  }
+  
+  showTooltipTimeout = setTimeout(() => {
+    vocabTooltip.style.display = 'block';
+    // Add visible class after a small delay for the animation
+    setTimeout(() => vocabTooltip.classList.add('visible'), 10);
+  }, vocabTooltipState.showDelay);
+}
+
+// Show error in tooltip
+function showTooltipError(error) {
+  vocabTooltipContent.innerHTML = `
+    <div class="vocab-row">
+      <span style="color: #e74c3c;">Error: ${error}</span>
+    </div>
+  `;
+}
+
+// Parse the definition text from OpenAI into a structured format
+function parseDefinition(definitionText) {
+  const lines = definitionText.split('\n');
+  const result = {};
+  
+  for (const line of lines) {
+    const colonIndex = line.indexOf(':');
+    if (colonIndex !== -1) {
+      const key = line.substring(0, colonIndex).trim();
+      const value = line.substring(colonIndex + 1).trim();
+      result[key] = value;
+    }
+  }
+  
+  return result;
+}
+
+// Display word definition in tooltip
+function displayWordDefinition(word, definition) {
+  // Parse the definition
+  const parsedDef = parseDefinition(definition);
+  
+  // Set header
+  vocabWordInfo.textContent = parsedDef.Word || word;
+  
+  // Build content HTML
+  let html = '';
+  
+  // Base form and part of speech
+  if (parsedDef.Base) {
+    html += `
+      <div class="vocab-row">
+        <div class="vocab-label">Base:</div>
+        <div class="vocab-value">${parsedDef.Base}</div>
+      </div>
+    `;
+  }
+  
+  // IPA
+  if (parsedDef.IPA && vocabTooltipState.showIpa) {
+    html += `
+      <div class="vocab-row">
+        <div class="vocab-label">IPA:</div>
+        <div class="vocab-value">${parsedDef.IPA}</div>
+      </div>
+    `;
+  }
+  
+  // English definition
+  if (parsedDef.English) {
+    html += `
+      <div class="vocab-row">
+        <div class="vocab-label">English:</div>
+        <div class="vocab-value">${parsedDef.English}</div>
+      </div>
+    `;
+  }
+  
+  // Turkish translation
+  if (parsedDef.Turkish && vocabTooltipState.showTurkish) {
+    html += `
+      <div class="vocab-row">
+        <div class="vocab-label">Turkish:</div>
+        <div class="vocab-value">${parsedDef.Turkish}</div>
+      </div>
+    `;
+  }
+  
+  // Example sentence
+  if (parsedDef.Example && vocabTooltipState.showExample) {
+    html += `<div class="vocab-example">${parsedDef.Example}</div>`;
+  }
+  
+  // Set content
+  vocabTooltipContent.innerHTML = html;
+}
+
+// Fetch and display word definition using the selected model
+async function fetchWordDefinition(word, sentence) {
+  // Skip if no API key is set
+  if (!vocabTooltipState.apiKey) {
+    showTooltipError('No API key set. Please set your OpenAI API key in Vocab Settings.');
+    return;
+  }
+  
+  // Show loading state
+  showTooltipLoading();
+  
+  try {
+    // Call API via IPC
+    const result = await window.electronAPI.getWordDefinition({
+      apiKey: vocabTooltipState.apiKey,
+      model: vocabTooltipState.model,
+      word: word,
+      sentence: sentence
+    });
+    
+    if (result.success) {
+      // Display the definition
+      displayWordDefinition(word, result.data);
+    } else {
+      // Show error
+      showTooltipError(result.error);
+    }
+  } catch (error) {
+    console.error('Error fetching definition:', error);
+    showTooltipError('Failed to fetch word definition. Check console for details.');
+  }
+}
+
+// Handle word hover/click
+function handleWordInteraction(event) {
+  // Skip if tooltip is disabled
+  if (!vocabTooltipState.enabled) {
+    return;
+  }
+  
+  // Ensure autoPause setting is initialized
+  if (vocabTooltipState.autoPause === undefined) {
+    console.log('Auto-pause was undefined, initializing to false');
+    vocabTooltipState.autoPause = false;
+  }
+  
+  const wordElement = event.target;
+  const word = wordElement.getAttribute('data-word');
+  
+  if (!word) {
+    return;
+  }
+  
+  // Clear any existing hide timeout
+  if (hideTooltipTimeout) {
+    clearTimeout(hideTooltipTimeout);
+    hideTooltipTimeout = null;
+  }
+  
+  // Close any existing tooltip first to ensure clean state
+  if (vocabTooltip.style.display === 'block') {
+    // If there's already a tooltip open, just update it with the new word
+    // but don't change video play state again
+    vocabTooltipState.activeWord = word;
+    
+    // Get the full subtitle text as context
+    let sentence = '';
+    if (appState.activeSubtitleIndex !== -1) {
+      sentence = appState.subtitles[appState.activeSubtitleIndex].text;
+    }
+    
+    // Fetch and display definition without affecting video playback
+    fetchWordDefinition(word, sentence);
+    return;
+  }
+  
+  // Get the full subtitle text as context
+  let sentence = '';
+  if (appState.activeSubtitleIndex !== -1) {
+    sentence = appState.subtitles[appState.activeSubtitleIndex].text;
+  }
+  
+  // Set active word
+  vocabTooltipState.activeWord = word;
+  
+  // Check if video was playing and store state
+  vocabTooltipState.videoWasPlaying = !videoPlayer.paused;
+
+  // Log for debugging
+  console.log('autoPause enabled:', vocabTooltipState.autoPause);
+  console.log('video was playing before hover:', vocabTooltipState.videoWasPlaying);
+  console.log('video is currently paused:', videoPlayer.paused);
+  
+  // Auto-pause video if enabled and video is currently playing
+  if (vocabTooltipState.autoPause && vocabTooltipState.videoWasPlaying) {
+    videoPlayer.pause();
+    console.log('Video paused due to tooltip hover');
+  }
+  
+  // Fetch and display definition
+  fetchWordDefinition(word, sentence);
+}
+
+// Close tooltip
+function closeVocabTooltip() {
+  // If tooltip is not visible or hiding, no need to proceed
+  if (vocabTooltip.style.display !== 'block' || hideTooltipTimeout) {
+    return;
+  }
+  
+  // Clear any existing show timeout
+  if (showTooltipTimeout) {
+    clearTimeout(showTooltipTimeout);
+    showTooltipTimeout = null;
+  }
+  
+  // Start hide timeout if not already hiding
+  hideTooltipTimeout = setTimeout(() => {
+    vocabTooltip.classList.remove('visible');
+    // Wait for fade out animation to complete before hiding
+    setTimeout(() => {
+      vocabTooltip.style.display = 'none';
+      vocabTooltipState.activeWord = null;
+      
+      // Resume video if it was playing and auto-pause is enabled
+      if (vocabTooltipState.autoPause && vocabTooltipState.videoWasPlaying) {
+        videoPlayer.play().then(() => {
+          console.log('Video resumed after tooltip closed');
+        }).catch(err => {
+          console.error('Error resuming video:', err);
+        });
+        vocabTooltipState.videoWasPlaying = false;
+      }
+    }, 200); // Match the CSS transition duration
+  }, vocabTooltipState.hideDelay);
+}
+
+// Toggle vocabulary tooltip feature
+function toggleVocabTooltip() {
+  vocabTooltipState.enabled = !vocabTooltipState.enabled;
+  updateVocabTooltipUI();
+  
+  // Save settings
+  localStorage.setItem('vocabTooltipSettings', JSON.stringify(vocabTooltipState));
+  
+  // Close tooltip if it's open
+  closeVocabTooltip();
+  
+  // Update subtitle display to add/remove word spans
+  if (appState.activeSubtitleIndex !== -1) {
+    updateSubtitleDisplay(appState.activeSubtitleIndex);
+  }
+  
+  // Show notification
+  showNotification(`Vocabulary tooltip ${vocabTooltipState.enabled ? 'enabled' : 'disabled'}.`);
+}
+
+// Initialize vocabulary tooltip settings
+document.addEventListener('DOMContentLoaded', initVocabTooltipSettings);
+
+// API key input event

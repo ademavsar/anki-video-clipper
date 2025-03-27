@@ -13,6 +13,13 @@
       <div class="video-container">
         <video id="video-player" controls></video>
         <div id="video-subtitle" class="video-subtitle"></div>
+        <div id="vocab-tooltip" class="vocab-tooltip">
+          <div class="vocab-tooltip-header">
+            <div class="vocab-word-info"></div>
+            <button id="close-vocab-tooltip" class="close-vocab-btn">×</button>
+          </div>
+          <div class="vocab-tooltip-content"></div>
+        </div>
         <div id="welcome-screen" class="welcome-screen">
           <div class="welcome-content">
             <h2>Anki Video Clipper</h2>
@@ -31,6 +38,14 @@
             <button id="subtitle-settings-btn">Subtitle Settings</button>
             <button id="embedded-subtitles-btn">Embedded Subtitles</button>
             <button id="select-subtitle-btn" style="display: none;">Select Subtitles</button>
+            <button id="vocab-tooltip-toggle-btn" class="icon-btn tooltip-container" title="Enable/Disable Vocabulary Tooltip">
+              <i class="fas fa-book"></i>
+              <span class="tooltip-text">Enable/Disable Vocabulary Tooltip</span>
+            </button>
+            <button id="vocab-tooltip-settings-btn" class="icon-btn tooltip-container" title="Open Vocabulary Tooltip Settings">
+              <i class="fas fa-cog"></i>
+              <span class="tooltip-text">Open Vocabulary Tooltip Settings</span>
+            </button>
           </div>
         </div>
       </div>
@@ -317,6 +332,82 @@
       </div>
       <div class="modal-footer">
         <button id="embedded-subtitles-cancel-btn" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vocabulary Tooltip Settings Modal -->
+  <div id="vocab-tooltip-settings-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Vocabulary Tooltip Settings</h3>
+        <span class="close-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="settings-group">
+          <h4>General Settings</h4>
+          <div class="setting-item">
+            <label for="vocab-tooltip-enable">Enable Vocabulary Tooltip:</label>
+            <div class="setting-control">
+              <input type="checkbox" id="vocab-tooltip-enable" checked>
+            </div>
+          </div>
+          <div class="setting-item api-key-setting">
+            <label for="vocab-tooltip-api-key">OpenAI API Key:</label>
+            <div class="setting-control">
+              <div class="api-key-input">
+                <input type="password" id="vocab-tooltip-api-key" placeholder="sk-..." class="full-width-input">
+                <button id="test-api-key-btn" class="test-btn" title="Verify API Key">
+                  <i class="fas fa-check-circle"></i>
+                </button>
+              </div>
+              <div id="api-key-status" class="api-key-status"></div>
+            </div>
+          </div>
+          <div class="setting-item">
+            <label for="vocab-model-select">OpenAI Model:</label>
+            <div class="setting-control">
+              <select id="vocab-model-select" class="full-width-input">
+                <option value="">Enter API key to see available models</option>
+              </select>
+              <div class="setting-help-text">API key verification required to load models</div>
+            </div>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h4>Display Options</h4>
+          <div class="setting-item">
+            <label for="vocab-show-ipa">Show IPA Pronunciation:</label>
+            <div class="setting-control">
+              <input type="checkbox" id="vocab-show-ipa" checked>
+            </div>
+          </div>
+          <div class="setting-item">
+            <label for="vocab-show-turkish">Show Turkish Translation:</label>
+            <div class="setting-control">
+              <input type="checkbox" id="vocab-show-turkish" checked>
+            </div>
+          </div>
+          <div class="setting-item">
+            <label for="vocab-show-example">Show Example Sentence:</label>
+            <div class="setting-control">
+              <input type="checkbox" id="vocab-show-example" checked>
+            </div>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h4>Behavior</h4>
+          <div class="setting-item">
+            <label for="vocab-auto-pause">Auto Pause Video on Hover:</label>
+            <div class="setting-control">
+              <input type="checkbox" id="vocab-auto-pause">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="reset-vocab-tooltip-settings">Reset to Default</button>
+        <button id="save-vocab-tooltip-settings">Save</button>
       </div>
     </div>
   </div>
