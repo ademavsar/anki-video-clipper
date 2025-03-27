@@ -537,18 +537,94 @@ function hideLoadingIndicator() {
 // Altyazıları yükle ve listele
 async function loadSubtitles(filePath) {
   try {
-    let subtitles = [];
+    // Debug: Check if file exists and log path
+    console.log('[DEBUG] Loading subtitles from:', filePath);
     
-    if (filePath.toLowerCase().endsWith('.srt')) {
+    // Check if file exists via electron API
+    const fileExists = await window.electronAPI.checkFilesExist({
+      videoPath: null,
+      subtitlePath: filePath
+    });
+    
+    console.log('[DEBUG] File exists check:', fileExists.subtitleExists);
+    
+    if (!fileExists.subtitleExists) {
+      console.error('[DEBUG] Subtitle file does not exist');
+      alert(`Subtitle file not found: ${filePath}`);
+      return;
+    }
+    
+    // Get raw file buffer for deep debugging
+    try {
+      const fileBuffer = await window.electronAPI.getFileBuffer(filePath);
+      console.log('[DEBUG] File buffer info:', {
+        exists: fileBuffer.exists,
+        size: fileBuffer.size,
+        path: fileBuffer.path
+      });
+      
+      // Log the first 100 bytes as hex for debugging
+      if (fileBuffer.exists && fileBuffer.buffer) {
+        const buffer = atob(fileBuffer.buffer);
+        let hexView = '';
+        for (let i = 0; i < Math.min(100, buffer.length); i++) {
+          hexView += buffer.charCodeAt(i).toString(16).padStart(2, '0') + ' ';
+        }
+        console.log('[DEBUG] First 100 bytes (hex):', hexView);
+      }
+    } catch (bufferError) {
+      console.error('[DEBUG] Error getting file buffer:', bufferError);
+    }
+    
+    let subtitles = [];
+    let subtitleContent = '';
+    
+    // Debug: Log file extension
+    const fileExt = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+    console.log('[DEBUG] Subtitle file extension:', fileExt);
+    
+    if (fileExt === '.srt') {
       // SRT dosyalarını doğrudan main process'te işle
-      subtitles = await window.electronAPI.parseSrtFile(filePath);
-    } else if (filePath.toLowerCase().endsWith('.ass') || filePath.toLowerCase().endsWith('.ssa')) {
+      console.log('[DEBUG] Parsing SRT file via main process');
+      try {
+        subtitles = await window.electronAPI.parseSrtFile(filePath);
+      } catch (parseError) {
+        console.error('[DEBUG] SRT parsing error:', parseError);
+        throw parseError;
+      }
+    } else if (fileExt === '.ass' || fileExt === '.ssa') {
       // Diğer formatlar için mevcut işleme yöntemini kullan
-      const subtitleContent = await window.electronAPI.readFile(filePath);
-      subtitles = parseASS(subtitleContent);
-    } else if (filePath.toLowerCase().endsWith('.vtt')) {
-      const subtitleContent = await window.electronAPI.readFile(filePath);
-      subtitles = parseVTT(subtitleContent);
+      console.log('[DEBUG] Reading and parsing ASS/SSA file');
+      try {
+        subtitleContent = await window.electronAPI.readFile(filePath);
+        console.log('[DEBUG] ASS/SSA content length:', subtitleContent.length);
+        console.log('[DEBUG] First 100 chars:', subtitleContent.substring(0, 100));
+        subtitles = parseASS(subtitleContent);
+      } catch (parseError) {
+        console.error('[DEBUG] ASS/SSA parsing error:', parseError);
+        throw parseError;
+      }
+    } else if (fileExt === '.vtt') {
+      console.log('[DEBUG] Reading and parsing VTT file');
+      try {
+        subtitleContent = await window.electronAPI.readFile(filePath);
+        
+        // Debug: Log content stats
+        console.log('[DEBUG] VTT content length:', subtitleContent.length);
+        console.log('[DEBUG] First 100 chars:', subtitleContent.substring(0, 100));
+        
+        // Debug: Validate VTT format basics
+        const hasWebVTT = subtitleContent.includes('WEBVTT');
+        const hasTimestamps = subtitleContent.includes('-->');
+        console.log('[DEBUG] VTT contains WEBVTT header:', hasWebVTT);
+        console.log('[DEBUG] VTT contains timestamps:', hasTimestamps);
+        
+        subtitles = parseVTT(subtitleContent);
+        console.log('[DEBUG] VTT parsing complete, subtitles count:', subtitles.length);
+      } catch (parseError) {
+        console.error('[DEBUG] VTT parsing error:', parseError);
+        throw parseError;
+      }
     }
     
     if (subtitles.length > 0) {
@@ -566,10 +642,13 @@ async function loadSubtitles(filePath) {
       // Altyazıların yüklendiğini bildir
       console.log(`${subtitles.length} subtitles loaded`);
     } else {
+      console.error('[DEBUG] No subtitles were parsed from the file');
+      console.error('[DEBUG] Subtitle content sample:', subtitleContent.substring(0, 200));
       alert('Subtitle file could not be read or unsupported format.');
     }
   } catch (error) {
-    console.error('Error loading subtitles:', error);
+    console.error('[DEBUG] loadSubtitles error:', error);
+    console.error('[DEBUG] Error stack:', error.stack);
     alert(`Error loading subtitles: ${error.message}`);
   }
 }
@@ -700,11 +779,18 @@ function parseASSTime(timeStr) {
 
 // VTT formatı için basit bir parser
 function parseVTT(content) {
+  console.log('[DEBUG] Starting VTT parsing');
+  
   const subtitles = [];
+  // Split content into blocks by blank lines
   const blocks = content.trim().split(/\r?\n\r?\n/);
+  
+  console.log('[DEBUG] VTT blocks count:', blocks.length);
   
   // İlk blok WEBVTT başlığı olabilir, atla
   const startIndex = blocks[0].trim().startsWith('WEBVTT') ? 1 : 0;
+  
+  console.log('[DEBUG] VTT parsing starting from block:', startIndex);
   
   for (let i = startIndex; i < blocks.length; i++) {
     const block = blocks[i];
@@ -719,41 +805,92 @@ function parseVTT(content) {
       
       if (timeLineIndex < lines.length) {
         const timeLine = lines[timeLineIndex];
-        const timeMatch = timeLine.match(/(\d{2}):(\d{2})\.(\d{3}) --> (\d{2}):(\d{2})\.(\d{3})/);
+        console.log('[DEBUG] Processing timestamp line:', timeLine);
         
-        if (timeMatch) {
-          const startMinutes = parseInt(timeMatch[1]);
-          const startSeconds = parseInt(timeMatch[2]);
-          const startMilliseconds = parseInt(timeMatch[3]);
+        // Try to match both HH:MM:SS.mmm and MM:SS.mmm formats
+        const timeMatchHours = timeLine.match(/(\d{2}):(\d{2}):(\d{2})\.(\d{3}) --> (\d{2}):(\d{2}):(\d{2})\.(\d{3})/);
+        const timeMatchMinutes = timeLine.match(/(\d{2}):(\d{2})\.(\d{3}) --> (\d{2}):(\d{2})\.(\d{3})/);
+        
+        let startTime = 0;
+        let endTime = 0;
+        
+        if (timeMatchHours) {
+          // Format with hours: HH:MM:SS.mmm
+          const startHours = parseInt(timeMatchHours[1]);
+          const startMinutes = parseInt(timeMatchHours[2]);
+          const startSeconds = parseInt(timeMatchHours[3]);
+          const startMilliseconds = parseInt(timeMatchHours[4]);
           
-          const endMinutes = parseInt(timeMatch[4]);
-          const endSeconds = parseInt(timeMatch[5]);
-          const endMilliseconds = parseInt(timeMatch[6]);
+          const endHours = parseInt(timeMatchHours[5]);
+          const endMinutes = parseInt(timeMatchHours[6]);
+          const endSeconds = parseInt(timeMatchHours[7]);
+          const endMilliseconds = parseInt(timeMatchHours[8]);
           
-          const startTime = startMinutes * 60 + startSeconds + startMilliseconds / 1000;
-          const endTime = endMinutes * 60 + endSeconds + endMilliseconds / 1000;
+          startTime = startHours * 3600 + startMinutes * 60 + startSeconds + startMilliseconds / 1000;
+          endTime = endHours * 3600 + endMinutes * 60 + endSeconds + endMilliseconds / 1000;
           
-          // Metin kısmını birleştir
-          let text = lines.slice(timeLineIndex + 1).join('\n');
+          console.log('[DEBUG] Parsed HH:MM:SS format, start:', startTime, 'end:', endTime);
+        } else if (timeMatchMinutes) {
+          // Format without hours: MM:SS.mmm
+          const startMinutes = parseInt(timeMatchMinutes[1]);
+          const startSeconds = parseInt(timeMatchMinutes[2]);
+          const startMilliseconds = parseInt(timeMatchMinutes[3]);
           
-          // HTML taglarını temizle (<i>, </i> vb.)
-          text = text.replace(/<[^>]*>/g, '');
+          const endMinutes = parseInt(timeMatchMinutes[4]);
+          const endSeconds = parseInt(timeMatchMinutes[5]);
+          const endMilliseconds = parseInt(timeMatchMinutes[6]);
           
-          // ASS formatı stil kodlarını temizle ({\an8} vb.)
-          text = text.replace(/{\\[^}]*}/g, '');
-          text = text.replace(/{[^}]*}/g, '');
+          startTime = startMinutes * 60 + startSeconds + startMilliseconds / 1000;
+          endTime = endMinutes * 60 + endSeconds + endMilliseconds / 1000;
           
-          subtitles.push({
-            id: subtitles.length + 1,
-            startTime,
-            endTime,
-            text
-          });
+          console.log('[DEBUG] Parsed MM:SS format, start:', startTime, 'end:', endTime);
+        } else {
+          // Try a more flexible regex for other formats
+          console.log('[DEBUG] Standard timestamp formats failed, trying alternative parsing');
+          
+          // This regex tries to match timestamps in various formats
+          const flexMatch = timeLine.match(/(\d+):(\d+)[:\.](\d+)?\s*-->\s*(\d+):(\d+)[:\.](\d+)?/);
+          
+          if (flexMatch) {
+            const startMin = parseInt(flexMatch[1]);
+            const startSec = parseInt(flexMatch[2]);
+            const startMs = flexMatch[3] ? parseInt(flexMatch[3]) : 0;
+            
+            const endMin = parseInt(flexMatch[4]);
+            const endSec = parseInt(flexMatch[5]);
+            const endMs = flexMatch[6] ? parseInt(flexMatch[6]) : 0;
+            
+            startTime = startMin * 60 + startSec + startMs / 1000;
+            endTime = endMin * 60 + endSec + endMs / 1000;
+            
+            console.log('[DEBUG] Used flexible timestamp parsing, start:', startTime, 'end:', endTime);
+          } else {
+            console.log('[DEBUG] Could not parse timestamp line:', timeLine);
+            continue; // Skip this block if we can't parse the timestamp
+          }
         }
+        
+        // Metin kısmını birleştir
+        let text = lines.slice(timeLineIndex + 1).join('\n');
+        
+        // HTML taglarını temizle (<i>, </i> vb.)
+        text = text.replace(/<[^>]*>/g, '');
+        
+        // ASS formatı stil kodlarını temizle ({\an8} vb.)
+        text = text.replace(/{\\[^}]*}/g, '');
+        text = text.replace(/{[^}]*}/g, '');
+        
+        subtitles.push({
+          id: subtitles.length + 1,
+          startTime,
+          endTime,
+          text
+        });
       }
     }
   }
   
+  console.log('[DEBUG] VTT parsing complete, found subtitles:', subtitles.length);
   return subtitles;
 }
 
@@ -3928,3 +4065,184 @@ function toggleVocabTooltip() {
 document.addEventListener('DOMContentLoaded', initVocabTooltipSettings);
 
 // API key input event
+
+// YouTube UI Elements
+const youtubeUrlInput = document.getElementById('youtube-url-input');
+const youtubeUrlSubmit = document.getElementById('youtube-url-submit');
+const youtubeOptionsModal = document.getElementById('youtube-options-modal');
+const youtubeResolutionSelect = document.getElementById('youtube-resolution');
+const youtubeSubtitleSelect = document.getElementById('youtube-subtitle-language');
+const youtubeDownloadBtn = document.getElementById('youtube-download-btn');
+const youtubeLoading = document.getElementById('youtube-loading');
+
+// Close Modal for YouTube Options
+youtubeOptionsModal.querySelector('.close-modal').addEventListener('click', () => {
+  youtubeOptionsModal.style.display = 'none';
+});
+
+// YouTube URL submit handler
+youtubeUrlSubmit.addEventListener('click', async () => {
+  const url = youtubeUrlInput.value.trim();
+  
+  if (!url) {
+    alert('Please enter a valid YouTube URL');
+    return;
+  }
+  
+  try {
+    // Yükleme göstergesini göster
+    showModal(youtubeOptionsModal);
+    youtubeLoading.style.display = 'flex';
+    youtubeResolutionSelect.disabled = true;
+    youtubeSubtitleSelect.disabled = true;
+    youtubeDownloadBtn.disabled = true;
+    
+    // YouTube bilgilerini al
+    const info = await window.electronAPI.getYoutubeInfo(url);
+    
+    // Yükleme göstergesini gizle
+    youtubeLoading.style.display = 'none';
+    
+    // Çözünürlük seçeneklerini doldur
+    youtubeResolutionSelect.innerHTML = '';
+    info.videoFormats.forEach(format => {
+      const option = document.createElement('option');
+      option.value = format.format_id;
+      option.textContent = `${format.quality} (${format.ext})`;
+      youtubeResolutionSelect.appendChild(option);
+    });
+    
+    // Altyazı seçeneklerini doldur
+    youtubeSubtitleSelect.innerHTML = '';
+    
+    if (info.subtitleTracks.length === 0) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No subtitles available';
+      youtubeSubtitleSelect.appendChild(option);
+    } else {
+      info.subtitleTracks.forEach(track => {
+        const option = document.createElement('option');
+        option.value = track.url;
+        option.textContent = track.name;
+        option.dataset.languageCode = track.languageCode;
+        option.dataset.auto = track.auto ? 'true' : 'false';
+        youtubeSubtitleSelect.appendChild(option);
+      });
+    }
+    
+    // Kontrolleri etkinleştir
+    youtubeResolutionSelect.disabled = false;
+    youtubeSubtitleSelect.disabled = false;
+    youtubeDownloadBtn.disabled = false;
+    
+  } catch (error) {
+    youtubeLoading.style.display = 'none';
+    alert(`Error getting YouTube video information: ${error.message}`);
+    youtubeOptionsModal.style.display = 'none';
+  }
+});
+
+// YouTube Download ve oynatma
+youtubeDownloadBtn.addEventListener('click', async () => {
+  const url = youtubeUrlInput.value.trim();
+  const formatId = youtubeResolutionSelect.value;
+  const subtitleUrl = youtubeSubtitleSelect.value;
+  
+  // Altyazı kontrolü
+  if (!subtitleUrl) {
+    alert('This video does not have subtitles. Please select a video with subtitles.');
+    return;
+  }
+  
+  try {
+    // Yükleme göstergesini göster
+    youtubeLoading.style.display = 'flex';
+    youtubeResolutionSelect.disabled = true;
+    youtubeSubtitleSelect.disabled = true;
+    youtubeDownloadBtn.disabled = true;
+    youtubeDownloadBtn.textContent = 'Downloading...';
+    
+    // Video ve altyazıyı indir
+    const result = await window.electronAPI.downloadYoutube({
+      url,
+      formatId,
+      subtitleUrl
+    });
+    
+    // İndirme tamamlandığında videoyu yükle
+    if (result.videoPath) {
+      appState.videoPath = result.videoPath;
+      videoPathDisplay.textContent = `Video: YouTube Video`;
+      
+      // Check if the video file exists before loading
+      const fileCheck = await window.electronAPI.checkFilesExist({
+        videoPath: result.videoPath,
+        subtitlePath: null
+      });
+      
+      console.log('[DEBUG] Video file exists check:', fileCheck.videoExists, 'Path:', result.videoPath);
+      
+      if (fileCheck.videoExists) {
+        // Small delay to ensure file is fully written and available
+        setTimeout(() => {
+          // Video oynatıcıya yükle - add file:// protocol
+          console.log('[DEBUG] Loading video with path:', `file://${result.videoPath}`);
+          videoPlayer.src = `file://${result.videoPath}`;
+          
+          // Video yüklendikten sonra otomatik oynat
+          videoPlayer.onloadeddata = function() {
+            videoPlayer.play();
+          };
+          
+          // Handle load error
+          videoPlayer.onerror = function(e) {
+            console.error('[DEBUG] Video load error:', e, videoPlayer.error);
+            alert(`Error loading video: ${videoPlayer.error ? videoPlayer.error.message : 'Unknown error'}`);
+          };
+        }, 500); // 500ms delay
+      } else {
+        console.error('[DEBUG] Video file does not exist after download:', result.videoPath);
+        alert('Error: Video file not found after download. Please try again.');
+      }
+    }
+    
+    // Altyazı yükleme
+    if (result.subtitlePath) {
+      appState.subtitlePath = result.subtitlePath;
+      subtitlePathDisplay.textContent = `Subtitles: YouTube Subtitles`;
+      
+      // Altyazıları yükle ve listele
+      await loadSubtitles(result.subtitlePath);
+    } else {
+      alert('Warning: Subtitles could not be loaded. The video will play without subtitles.');
+    }
+    
+    // Modalı kapat
+    youtubeOptionsModal.style.display = 'none';
+    
+    // Hoş geldiniz ekranını gizle
+    checkIfShouldShowWelcome();
+    
+  } catch (error) {
+    console.error('YouTube download error:', error);
+    alert(`Error downloading YouTube video: ${error.message}\n\nPlease try again or use a different video.`);
+  } finally {
+    // Yükleme göstergesini gizle
+    youtubeLoading.style.display = 'none';
+    youtubeResolutionSelect.disabled = false;
+    youtubeSubtitleSelect.disabled = false;
+    youtubeDownloadBtn.disabled = false;
+    youtubeDownloadBtn.textContent = 'Download and Play';
+  }
+});
+
+// Genel yardımcı fonksiyonlar
+// ... existing code ...
+
+// Modalı göster
+function showModal(modal) {
+  modal.style.display = 'block';
+}
+
+// ... existing code ...

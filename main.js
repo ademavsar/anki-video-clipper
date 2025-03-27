@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, Menu, ipcMain, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
@@ -6,6 +6,9 @@ const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffprobePath = require('@ffprobe-installer/ffprobe').path;
 const fetch = require('node-fetch');
 const keytar = require('keytar');
+const { exec, spawn } = require('child_process');
+const os = require('os');
+const glob = require('glob');
 
 // Set service name for keytar
 const SERVICE_NAME = 'anki-video-clipper';
@@ -73,14 +76,15 @@ let mainWindow;
 function createWindow() {
   // Ana pencereyi oluştur
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 720,
+    width: 1200,
+    height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false,
       contextIsolation: true,
-      // Dosya okuma için güvenlik ayarı
-      webSecurity: true
+      nodeIntegration: false,
+      webSecurity: true,
+      contentSecurityPolicy: "default-src 'self'; script-src 'self'; media-src 'self' file: blob:; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com;",
+      worldSafeExecuteJavaScript: true
     },
     icon: path.join(__dirname, 'assets/icon.png')
   });
@@ -2260,6 +2264,583 @@ ipcMain.handle('secure-delete-api-key', async (event) => {
     return { 
       success: false, 
       error: 'Failed to delete API key from secure storage' 
+    };
+  }
+});
+
+// IPC handler ekle - YouTube video bilgilerini getir
+ipcMain.handle('get-youtube-info', async (event, url) => {
+  try {
+    // Create temporary directory if it doesn't exist
+    const tempDir = path.join(os.tmpdir(), 'anki_video_clipper');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    // Get video info using yt-dlp
+    const videoInfo = await new Promise((resolve, reject) => {
+      const process = spawn('yt-dlp', [
+        '--dump-json',
+        '--no-playlist',
+        url
+      ]);
+
+      let stdout = '';
+      let stderr = '';
+
+      process.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      process.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      process.on('close', (code) => {
+        if (code === 0) {
+          try {
+            const info = JSON.parse(stdout);
+            resolve(info);
+          } catch (error) {
+            reject(new Error(`Failed to parse yt-dlp output: ${error.message}`));
+          }
+        } else {
+          reject(new Error(`yt-dlp failed with code ${code}: ${stderr}`));
+        }
+      });
+    });
+
+    // Get available formats (480p to 1080p)
+    const formatMap = {};
+    
+    // First try for formats with both video and audio
+    let videoFormats = videoInfo.formats
+      .filter(format => {
+        // Check for formats with both video and audio
+        return format.vcodec !== 'none' && format.acodec !== 'none' && 
+               format.height >= 480 && format.height <= 1080;
+      })
+      .map(format => {
+        const formattedFormat = {
+          format_id: format.format_id,
+          quality: `${format.height}p`,
+          ext: format.ext,
+          vcodec: format.vcodec,
+          acodec: format.acodec,
+          height: format.height,
+          width: format.width,
+          filesize: format.filesize,
+          type: 'combined' // Mark as combined format
+        };
+        
+        // Store in map for quick lookup
+        formatMap[format.format_id] = formattedFormat;
+        
+        return formattedFormat;
+      })
+      .sort((a, b) => b.height - a.height); // Sort by resolution (highest first)
+    
+    // If no combined formats found, use video-only formats
+    if (videoFormats.length === 0) {
+      console.log('No combined formats found, using video-only formats with best audio');
+      
+      // Get video-only formats
+      videoFormats = videoInfo.formats
+        .filter(format => {
+          // Check for video-only formats (no audio)
+          return format.vcodec !== 'none' && format.acodec === 'none' && 
+                format.height >= 480 && format.height <= 1080;
+        })
+        .map(format => {
+          const formattedFormat = {
+            format_id: `${format.format_id}+bestaudio`,
+            quality: `${format.height}p`,
+            ext: 'mp4', // Use mp4 as output format for merged streams
+            vcodec: format.vcodec,
+            height: format.height,
+            width: format.width,
+            filesize: format.filesize,
+            type: 'video-only' // Mark as video-only format
+          };
+          
+          // Store in map for quick lookup
+          formatMap[format.format_id] = formattedFormat;
+          
+          return formattedFormat;
+        })
+        .sort((a, b) => b.height - a.height); // Sort by resolution (highest first)
+    }
+    
+    // If still no formats found, use the "best" option as fallback
+    if (videoFormats.length === 0) {
+      videoFormats.push({
+        format_id: 'best',
+        quality: 'Best available',
+        ext: 'mp4',
+        vcodec: 'unknown',
+        acodec: 'unknown',
+        type: 'best'
+      });
+    }
+    
+    // Deduplicate formats by resolution - keep only one format per resolution (prefer mp4)
+    const uniqueResolutions = {};
+    
+    videoFormats.forEach(format => {
+      const resolution = format.height || 0;
+      const currentBestFormat = uniqueResolutions[resolution];
+      
+      // If this is the first format we've seen with this resolution, or it's an mp4 (and current isn't)
+      if (!currentBestFormat || 
+          (format.ext === 'mp4' && currentBestFormat.ext !== 'mp4')) {
+        uniqueResolutions[resolution] = format;
+      }
+    });
+    
+    // Convert back to sorted array
+    const dedupedFormats = Object.values(uniqueResolutions)
+      .sort((a, b) => (b.height || 0) - (a.height || 0));
+    
+    // Show how many formats we deduplicated
+    console.log(`Deduplicated formats: ${videoFormats.length} -> ${dedupedFormats.length}`);
+
+    // Get available subtitles (excluding auto-generated ones)
+    const subtitleTracks = [];
+    if (videoInfo.subtitles) {
+      for (const [lang, tracks] of Object.entries(videoInfo.subtitles)) {
+        const vttTracks = tracks.filter(track => track.ext === 'vtt');
+        
+        if (vttTracks.length > 0) {
+          const track = vttTracks[0]; // Prefer VTT format
+          subtitleTracks.push({
+            languageCode: lang,
+            name: track.name || videoInfo.subtitles_info?.[lang]?.name || lang,
+            url: track.url,
+            ext: track.ext,
+            auto: false
+          });
+        }
+      }
+    }
+    
+    // We'll exclude auto-generated subtitles as they're not reliable for language study
+    // (commented out the code that would add them)
+    /*
+    if (videoInfo.automatic_captions) {
+      for (const [lang, tracks] of Object.entries(videoInfo.automatic_captions)) {
+        const vttTracks = tracks.filter(track => track.ext === 'vtt');
+        
+        if (vttTracks.length > 0) {
+          const track = vttTracks[0]; // Prefer VTT format
+          subtitleTracks.push({
+            languageCode: lang,
+            name: `${track.name || lang} (Auto-generated)`,
+            url: track.url,
+            ext: track.ext,
+            auto: true
+          });
+        }
+      }
+    }
+    */
+    
+    return {
+      title: videoInfo.title,
+      videoFormats: dedupedFormats,
+      subtitleTracks,
+      thumbnail: videoInfo.thumbnail,
+      duration: videoInfo.duration,
+      id: videoInfo.id
+    };
+  } catch (error) {
+    console.error('YouTube bilgisi alma hatası:', error);
+    throw error;
+  }
+});
+
+// IPC handler ekle - YouTube video ve altyazı indir
+ipcMain.handle('download-youtube', async (event, args) => {
+  try {
+    const { url, formatId, subtitleUrl } = args;
+    
+    // Geçici klasör yolu - use correct directory name and ensure it's consistent
+    const tempDir = path.resolve(os.tmpdir(), 'anki_video_clipper');
+    
+    // Debug directory names for verification
+    console.log('[DEBUG] Using temp directory:', tempDir);
+    console.log('[DEBUG] os.tmpdir():', os.tmpdir());
+    
+    // Geçici klasörü oluştur (yoksa)
+    if (!fs.existsSync(tempDir)) {
+      console.log('[DEBUG] Creating temp directory as it does not exist:', tempDir);
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    // Get video ID for filename with timestamp to avoid conflicts
+    const videoId = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^?&/]+)/)?.[1] || 'video';
+    const timestamp = Date.now();
+    const baseFilename = `youtube_${videoId}_${timestamp}`;
+    
+    // Remove file extension from output path to let yt-dlp decide the format
+    const outputBase = path.resolve(tempDir, baseFilename);
+    
+    console.log('[DEBUG] Generated base output path:', outputBase);
+    
+    // Altyazı için benzersiz dosya adı (varsa)
+    let subtitleFilePath = null;
+    let actualVideoPath = null;
+    
+    // Video indirme işlemi
+    await new Promise((resolve, reject) => {
+      // Ensure proper path formatting and don't include extension
+      const outputFilename = path.basename(outputBase);
+      
+      // Properly normalize the temp directory path for yt-dlp
+      // Convert Windows backslashes to forward slashes
+      const normalizedTempDir = tempDir.replace(/\\/g, '/');
+      
+      console.log('[DEBUG] Normalized temp directory:', normalizedTempDir);
+      
+      // Remove the problematic --print option which causes path issues on Windows
+      const args = [
+        '--no-playlist',
+        '--output', outputFilename,
+        url
+      ];
+      
+      // If formatId is specified and it's not "best", use it
+      if (formatId && formatId !== 'best') {
+        args.splice(1, 0, '-f', formatId);
+      }
+      
+      console.log('[DEBUG] Running yt-dlp with args:', args.join(' '));
+      console.log('[DEBUG] Working directory:', process.cwd());
+      
+      // Execute yt-dlp with explicit cwd to avoid path issues
+      const ytdlProcess = spawn('yt-dlp', args, { 
+        cwd: tempDir,
+        shell: true,
+        env: process.env
+      });
+      
+      let stdout = '';
+      let stderr = '';
+      
+      ytdlProcess.stdout.on('data', (data) => {
+        stdout += data.toString();
+        console.log('[DEBUG] yt-dlp stdout:', data.toString());
+      });
+      
+      ytdlProcess.stderr.on('data', (data) => {
+        stderr += data.toString();
+        console.error('[DEBUG] yt-dlp stderr:', data.toString());
+      });
+      
+      ytdlProcess.on('close', (code) => {
+        if (code === 0) {
+          console.log('[DEBUG] YouTube video download completed.');
+          
+          // Don't rely on the print output - instead, search for the file directly
+          // Check for common video extensions in the temp directory
+          const commonExtensions = ['.mkv', '.mp4', '.webm', '.avi', '.mov'];
+          
+          // 1. Try to find the file directly in the expected location with various extensions
+          for (const ext of commonExtensions) {
+            const possiblePath = path.join(tempDir, outputFilename + ext);
+            console.log('[DEBUG] Checking for file with extension:', ext, 'at path:', possiblePath);
+            
+            if (fs.existsSync(possiblePath)) {
+              console.log('[DEBUG] Found file with extension:', ext);
+              actualVideoPath = possiblePath;
+              resolve();
+              return;
+            }
+          }
+          
+          // 2. Look for recently created files in the temp directory
+          try {
+            const files = fs.readdirSync(tempDir);
+            const videoFiles = files.filter(file => {
+              // Check if it matches our base filename and has a video extension
+              const filePath = path.join(tempDir, file);
+              const stats = fs.statSync(filePath);
+              const isRecent = (Date.now() - stats.ctime.getTime()) < 30000; // Less than 30 seconds old
+              const hasVideoExt = commonExtensions.some(ext => file.endsWith(ext));
+              
+              return file.includes(outputFilename) && hasVideoExt && isRecent;
+            });
+            
+            if (videoFiles.length > 0) {
+              const foundFile = path.join(tempDir, videoFiles[0]);
+              console.log('[DEBUG] Found recent video file:', foundFile);
+              actualVideoPath = foundFile;
+              resolve();
+              return;
+            }
+          } catch (err) {
+            console.error('[DEBUG] Error reading temp directory:', err);
+          }
+          
+          // 3. Check alternative directory
+          const alternativeDir = path.join(os.tmpdir(), 'anki-video-clipper');
+          console.log('[DEBUG] Checking alternative directory:', alternativeDir);
+          
+          if (fs.existsSync(alternativeDir)) {
+            for (const ext of commonExtensions) {
+              const alternativePath = path.join(alternativeDir, outputFilename + ext);
+              console.log('[DEBUG] Checking alternative path with extension:', ext, 'at path:', alternativePath);
+              
+              if (fs.existsSync(alternativePath)) {
+                console.log('[DEBUG] File found at alternative path:', alternativePath);
+                // Copy to the correct location
+                try {
+                  const targetPath = path.join(tempDir, outputFilename + ext);
+                  fs.copyFileSync(alternativePath, targetPath);
+                  console.log('[DEBUG] File copied successfully to:', targetPath);
+                  actualVideoPath = targetPath;
+                  resolve();
+                  return;
+                } catch (copyError) {
+                  console.error('[DEBUG] Error copying file:', copyError);
+                  // Use the alternative path if copy fails
+                  actualVideoPath = alternativePath;
+                  resolve();
+                  return;
+                }
+              }
+            }
+          }
+          
+          // 4. Last resort: Scan for any recently created video files in temp directory
+          console.log('[DEBUG] Searching for any recently created video files in temp directories');
+          try {
+            // Get all files in both possible temp directories
+            const allTempDirs = [tempDir];
+            if (fs.existsSync(alternativeDir)) {
+              allTempDirs.push(alternativeDir);
+            }
+            
+            let recentVideoFiles = [];
+            
+            for (const dir of allTempDirs) {
+              const files = fs.readdirSync(dir);
+              files.forEach(file => {
+                const filePath = path.join(dir, file);
+                try {
+                  const stats = fs.statSync(filePath);
+                  const isRecent = (Date.now() - stats.ctime.getTime()) < 60000; // Less than a minute old
+                  const hasVideoExt = commonExtensions.some(ext => file.toLowerCase().endsWith(ext));
+                  
+                  if (hasVideoExt && isRecent) {
+                    recentVideoFiles.push({
+                      path: filePath,
+                      time: stats.ctime.getTime()
+                    });
+                  }
+                } catch (statErr) {
+                  // Skip if we can't stat the file
+                }
+              });
+            }
+            
+            // Sort by creation time (newest first)
+            recentVideoFiles.sort((a, b) => b.time - a.time);
+            
+            if (recentVideoFiles.length > 0) {
+              console.log('[DEBUG] Using most recently created video file:', recentVideoFiles[0].path);
+              actualVideoPath = recentVideoFiles[0].path;
+              resolve();
+              return;
+            }
+          } catch (scanErr) {
+            console.error('[DEBUG] Error scanning for recent videos:', scanErr);
+          }
+          
+          console.error('[DEBUG] No video file found after exhaustive search');
+          reject(new Error('Failed to find downloaded video file after trying all methods'));
+        } else {
+          console.error('[DEBUG] YouTube video download error, code:', code, 'stderr:', stderr);
+          reject(new Error(`Failed to download video. Exit code: ${code}`));
+        }
+      });
+      
+      ytdlProcess.on('error', (err) => {
+        console.error('[DEBUG] yt-dlp process error:', err);
+        reject(err);
+      });
+    });
+    
+    // Safety check - if we didn't find a file, this shouldn't happen
+    if (!actualVideoPath || !fs.existsSync(actualVideoPath)) {
+      console.error('[DEBUG] Video file not found after download completed');
+      throw new Error('Video file not found after download completion');
+    }
+    
+    console.log('[DEBUG] Final video path to be used:', actualVideoPath);
+    
+    // Altyazı indirme işlemi (varsa)
+    if (subtitleUrl) {
+      subtitleFilePath = path.join(tempDir, `${baseFilename}_subtitle.vtt`);
+      
+      // Fetch the subtitle content
+      try {
+        const response = await fetch(subtitleUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch subtitle: ${response.statusText}`);
+        }
+        
+        let subtitleContent = await response.text();
+        
+        // Check if it's an XML format (YT subtitles are sometimes in timed text XML)
+        if (subtitleContent.trim().startsWith('<?xml') || subtitleContent.includes('<transcript>')) {
+          console.log('[DEBUG] YouTube subtitle is in XML format, converting to VTT');
+          
+          // Simple XML to VTT conversion - this is basic and may need enhancement
+          subtitleContent = convertYouTubeXmlToVtt(subtitleContent);
+        }
+        
+        // Save the subtitle content
+        fs.writeFileSync(subtitleFilePath, subtitleContent);
+        console.log('[DEBUG] Subtitle download completed:', subtitleFilePath);
+        
+        // Validate VTT file
+        if (!validateVttFile(subtitleFilePath)) {
+          console.error('[DEBUG] Invalid VTT file downloaded, attempting to fix');
+          // Try to fix the VTT file
+          const fixed = fixVttFile(subtitleFilePath);
+          if (!fixed) {
+            console.error('[DEBUG] Could not fix VTT file, subtitle may not work properly');
+          }
+        }
+      } catch (error) {
+        console.error('[DEBUG] Subtitle download error:', error);
+        // Don't fail the whole process if subtitle download fails
+        // Instead, just return null for the subtitle path
+        subtitleFilePath = null;
+      }
+    }
+    
+    return {
+      videoPath: actualVideoPath,
+      subtitlePath: subtitleFilePath
+    };
+  } catch (error) {
+    console.error('[DEBUG] YouTube download error:', error);
+    throw error;
+  }
+});
+
+// Function to validate VTT file
+function validateVttFile(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    // Basic validation - check for WEBVTT header and some cue content
+    return content.includes('WEBVTT') && /\d\d:\d\d:\d\d/g.test(content);
+  } catch (error) {
+    console.error('VTT validation error:', error);
+    return false;
+  }
+}
+
+// Function to fix common VTT file issues
+function fixVttFile(filePath) {
+  try {
+    let content = fs.readFileSync(filePath, 'utf8');
+    
+    // Add WEBVTT header if missing
+    if (!content.includes('WEBVTT')) {
+      content = 'WEBVTT\n\n' + content;
+    }
+    
+    // Fix timestamp format if needed
+    content = content.replace(/(\d\d:\d\d:\d\d),(\d\d\d)/g, '$1.$2');
+    
+    // Write fixed content back to file
+    fs.writeFileSync(filePath, content);
+    return true;
+  } catch (error) {
+    console.error('VTT fix error:', error);
+    return false;
+  }
+}
+
+// Function to convert YouTube XML format to VTT
+function convertYouTubeXmlToVtt(xmlContent) {
+  try {
+    // Very basic XML parsing - this is a simplified version
+    const lines = [];
+    lines.push('WEBVTT\n');
+    
+    // Extract text elements with their start and duration
+    const textElements = xmlContent.match(/<text[^>]*>(.*?)<\/text>/g) || [];
+    
+    for (let i = 0; i < textElements.length; i++) {
+      const element = textElements[i];
+      
+      // Extract start time and duration
+      const startMatch = element.match(/start="([\d.]+)"/);
+      const durMatch = element.match(/dur="([\d.]+)"/);
+      
+      if (startMatch && durMatch) {
+        const start = parseFloat(startMatch[1]);
+        const duration = parseFloat(durMatch[1]);
+        const end = start + duration;
+        
+        // Format timestamps as HH:MM:SS.mmm
+        const startTime = formatVttTime(start);
+        const endTime = formatVttTime(end);
+        
+        // Extract text content
+        let text = element.replace(/<[^>]*>/g, '');
+        // Decode HTML entities
+        text = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+        
+        // Add cue to VTT
+        lines.push(`${i + 1}`);
+        lines.push(`${startTime} --> ${endTime}`);
+        lines.push(text);
+        lines.push('');
+      }
+    }
+    
+    return lines.join('\n');
+  } catch (error) {
+    console.error('XML to VTT conversion error:', error);
+    return 'WEBVTT\n\n1\n00:00:00.000 --> 00:00:05.000\nError converting subtitles';
+  }
+}
+
+// Helper function to format seconds to VTT time format
+function formatVttTime(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  seconds %= 3600;
+  const minutes = Math.floor(seconds / 60);
+  seconds %= 60;
+  
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toFixed(3).padStart(6, '0')}`;
+}
+
+// Debug helper to get raw file buffer
+ipcMain.handle('get-file-buffer', async (event, filePath) => {
+  try {
+    // Read file as buffer and convert to Base64 for safe transfer
+    const buffer = await fs.promises.readFile(filePath);
+    
+    // Get file stats
+    const stats = await fs.promises.stat(filePath);
+    
+    return {
+      exists: true,
+      size: stats.size,
+      buffer: buffer.toString('base64'),
+      path: filePath
+    };
+  } catch (error) {
+    console.error('File buffer reading error:', error);
+    return {
+      exists: false,
+      error: error.message,
+      path: filePath
     };
   }
 });

@@ -48,8 +48,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
   
+  // YouTube işlemleri
+  getYoutubeInfo: (url) => ipcRenderer.invoke('get-youtube-info', url),
+  downloadYoutube: (args) => ipcRenderer.invoke('download-youtube', args),
+  
   // Dosya işlemleri - güvenli şekilde düzenlendi
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
+  
+  // Debug helper to get raw file content
+  getFileBuffer: (filePath) => ipcRenderer.invoke('get-file-buffer', filePath),
   
   // Dosyaların varlığını kontrol et
   checkFilesExist: (args) => ipcRenderer.invoke('check-files-exist', args),

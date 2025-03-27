@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; media-src 'self' file:; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; media-src 'self' file: blob:; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com;">
   <title>Anki Video Clipper</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
@@ -26,6 +26,15 @@
             <p>Video ve altyazı dosyalarını bu alana sürükleyip bırakın</p>
             <p>veya</p>
             <button id="welcome-select-btn">Dosyaları Seç</button>
+            
+            <div class="youtube-input-container">
+              <p>veya</p>
+              <p>YouTube video URL'si girin</p>
+              <div class="youtube-url-input">
+                <input type="text" id="youtube-url-input" placeholder="https://www.youtube.com/watch?v=...">
+                <button id="youtube-url-submit">Yükle</button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="video-info-bar">
@@ -125,6 +134,42 @@
             <button id="send-to-anki-btn">Anki Export</button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- YouTube Options Modal -->
+  <div id="youtube-options-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>YouTube Video Options</h3>
+        <span class="close-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="settings-group">
+          <h4>Video Resolution</h4>
+          <div class="setting-item">
+            <select id="youtube-resolution">
+              <!-- Will be populated dynamically -->
+            </select>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h4>Subtitles</h4>
+          <div class="setting-item">
+            <select id="youtube-subtitle-language">
+              <option value="">No subtitles available</option>
+              <!-- Will be populated dynamically -->
+            </select>
+          </div>
+        </div>
+        <div id="youtube-loading" class="loading-indicator">
+          <div class="spinner"></div>
+          <span>Loading available options...</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="youtube-download-btn">Download and Play</button>
       </div>
     </div>
   </div>
