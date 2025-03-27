@@ -1,10 +1,15 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
-const path = require('path');
+const { app, BrowserWindow, dialog, Menu, ipcMain } = require('electron');
 const fs = require('fs');
-const { spawn } = require('child_process');
-const fetch = require('node-fetch');
-const os = require('os');
+const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+const ffprobePath = require('@ffprobe-installer/ffprobe').path;
+const fetch = require('node-fetch');
+const keytar = require('keytar');
+
+// Set service name for keytar
+const SERVICE_NAME = 'anki-video-clipper';
+const API_KEY_ACCOUNT = 'openai-api-key';
 
 // Dönüştürülmüş dosyaları önbelleklemek için global nesne
 const audioConversionCache = {
@@ -2181,7 +2186,8 @@ async function fetchAvailableModels(apiKey) {
       }))
     };
   } catch (error) {
-    console.error('Error fetching OpenAI models:', error);
+    // Log error without including API key
+    console.error('Error fetching OpenAI models - check network or API access');
     return { 
       success: false, 
       error: error.message || 'Failed to fetch models'
@@ -2199,13 +2205,61 @@ ipcMain.handle('check-openai-api-key', async (event, { apiKey }) => {
       };
     }
     
+    // Log action without the API key
+    console.log('[INFO] Verifying OpenAI API key (key hidden)');
+    
     // Fetch available models to verify key
     const modelsResult = await fetchAvailableModels(apiKey);
     return modelsResult;
   } catch (error) {
+    // Log error without exposing API key
+    console.error('[ERROR] API key verification failed');
     return { 
       success: false, 
       error: error.message || 'Failed to verify API key'
     };
   }
-}); 
+});
+
+// Secure Storage IPC Handlers
+ipcMain.handle('secure-store-api-key', async (event, { apiKey }) => {
+  try {
+    await keytar.setPassword(SERVICE_NAME, API_KEY_ACCOUNT, apiKey);
+    return { success: true };
+  } catch (error) {
+    console.error('[ERROR] Failed to store API key securely', null);
+    return { 
+      success: false, 
+      error: 'Failed to store API key in secure storage'
+    };
+  }
+});
+
+ipcMain.handle('secure-get-api-key', async (event) => {
+  try {
+    const apiKey = await keytar.getPassword(SERVICE_NAME, API_KEY_ACCOUNT);
+    return { 
+      success: true, 
+      apiKey: apiKey || '' 
+    };
+  } catch (error) {
+    console.error('[ERROR] Failed to retrieve API key from secure storage', null);
+    return { 
+      success: false, 
+      error: 'Failed to retrieve API key from secure storage' 
+    };
+  }
+});
+
+ipcMain.handle('secure-delete-api-key', async (event) => {
+  try {
+    await keytar.deletePassword(SERVICE_NAME, API_KEY_ACCOUNT);
+    return { success: true };
+  } catch (error) {
+    console.error('[ERROR] Failed to delete API key from secure storage', null);
+    return { 
+      success: false, 
+      error: 'Failed to delete API key from secure storage' 
+    };
+  }
+});

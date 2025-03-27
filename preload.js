@@ -69,7 +69,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWordDefinition: (args) => ipcRenderer.invoke('get-word-definition', args),
   
   // OpenAI API key doğrulama ve model listesi
-  checkOpenAIApiKey: (args) => ipcRenderer.invoke('check-openai-api-key', args)
+  checkOpenAIApiKey: (args) => ipcRenderer.invoke('check-openai-api-key', args),
+  
+  // Secure storage for API keys
+  secureStoreApiKey: (args) => ipcRenderer.invoke('secure-store-api-key', args),
+  secureGetApiKey: () => ipcRenderer.invoke('secure-get-api-key'),
+  secureDeleteApiKey: () => ipcRenderer.invoke('secure-delete-api-key')
 });
 
 // Loglama işlevi

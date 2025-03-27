@@ -13,7 +13,10 @@
     "electron": "^29.1.0"
   },
   "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffprobe-installer/ffprobe": "^2.1.2",
     "fluent-ffmpeg": "^2.1.2",
+    "keytar": "^7.9.0",
     "node-fetch": "^2.7.0",
     "subtitle": "^4.2.1",
     "video.js": "^8.22.0"

@@ -3179,6 +3179,7 @@ let vocabShowTurkishCheckbox;
 let vocabShowExampleCheckbox;
 let vocabAutoPauseCheckbox;
 let testApiKeyBtn;
+let clearApiKeyBtn;
 let apiKeyStatus;
 let saveVocabTooltipSettingsBtn;
 let resetVocabTooltipSettingsBtn;
@@ -3210,7 +3211,7 @@ let vocabTooltipState = {
 };
 
 // Initialize vocabulary tooltip settings and DOM elements
-function initVocabTooltipSettings() {
+async function initVocabTooltipSettings() {
   // Initialize DOM elements
   vocabTooltip = document.getElementById('vocab-tooltip');
   vocabTooltipContent = document.querySelector('.vocab-tooltip-content');
@@ -3229,6 +3230,7 @@ function initVocabTooltipSettings() {
   vocabShowExampleCheckbox = document.getElementById('vocab-show-example');
   vocabAutoPauseCheckbox = document.getElementById('vocab-auto-pause');
   testApiKeyBtn = document.getElementById('test-api-key-btn');
+  clearApiKeyBtn = document.getElementById('clear-api-key-btn');
   apiKeyStatus = document.getElementById('api-key-status');
   saveVocabTooltipSettingsBtn = document.getElementById('save-vocab-tooltip-settings');
   resetVocabTooltipSettingsBtn = document.getElementById('reset-vocab-tooltip-settings');
@@ -3266,6 +3268,9 @@ function initVocabTooltipSettings() {
   // Reset settings
   resetVocabTooltipSettingsBtn.addEventListener('click', resetVocabTooltipSettings);
   
+  // Clear API Key button
+  clearApiKeyBtn.addEventListener('click', clearApiKey);
+  
   // Allow hovering over the tooltip to keep it open
   vocabTooltip.addEventListener('mouseenter', () => {
     if (hideTooltipTimeout) {
@@ -3295,6 +3300,9 @@ function initVocabTooltipSettings() {
     if (savedSettings) {
       vocabTooltipState = JSON.parse(savedSettings);
       
+      // API key should be loaded from secure storage not localStorage
+      vocabTooltipState.apiKey = '';
+      
       // Add missing properties if needed
       if (vocabTooltipState.model === undefined) {
         vocabTooltipState.model = 'gpt-3.5-turbo';
@@ -3317,12 +3325,59 @@ function initVocabTooltipSettings() {
     console.error('Error loading vocabulary tooltip settings:', error);
   }
   
+  // Load API key from secure storage
+  try {
+    const result = await window.electronAPI.secureGetApiKey();
+    if (result.success && result.apiKey) {
+      vocabTooltipState.apiKey = result.apiKey;
+      console.log('API key loaded from secure storage');
+    }
+  } catch (error) {
+    console.error('Error loading API key from secure storage');
+  }
+  
   // Update UI based on loaded settings
   updateVocabTooltipUI();
   
   // If API key is already set, try to verify and fetch models
   if (vocabTooltipState.apiKey) {
     verifyApiKey(vocabTooltipState.apiKey, false);
+  }
+}
+
+// Clear API key function
+async function clearApiKey() {
+  try {
+    // Clear API key from secure storage
+    const result = await window.electronAPI.secureDeleteApiKey();
+    if (!result.success) {
+      showNotification('Error clearing API key: ' + result.error);
+      return;
+    }
+    
+    // Clear API key from state
+    vocabTooltipState.apiKey = '';
+    
+    // Update UI
+    vocabApiKeyInput.value = '';
+    apiKeyStatus.innerHTML = '';
+    apiKeyStatus.className = 'api-key-status';
+    
+    // Reset model select
+    updateModelSelect();
+    
+    // Create a copy of the state without the API key for localStorage
+    const stateForStorage = { ...vocabTooltipState };
+    delete stateForStorage.apiKey;
+    
+    // Save to localStorage (without API key)
+    localStorage.setItem('vocabTooltipSettings', JSON.stringify(stateForStorage));
+    
+    // Show notification
+    showNotification('API key cleared successfully.');
+  } catch (error) {
+    console.error('Error clearing API key:', error);
+    showNotification('Failed to clear API key.');
   }
 }
 
@@ -3398,25 +3453,61 @@ function updateModelSelect() {
 }
 
 // Save settings
-function saveVocabTooltipSettings() {
+async function saveVocabTooltipSettings() {
+  // Get the API key from the input
+  const apiKey = vocabApiKeyInput.value.trim();
+  
   // Update settings from form values
   vocabTooltipState.enabled = vocabTooltipEnableCheckbox.checked;
-  vocabTooltipState.apiKey = vocabApiKeyInput.value.trim();
   vocabTooltipState.model = vocabModelSelect.value;
   vocabTooltipState.showIpa = vocabShowIpaCheckbox.checked;
   vocabTooltipState.showTurkish = vocabShowTurkishCheckbox.checked;
   vocabTooltipState.showExample = vocabShowExampleCheckbox.checked;
   vocabTooltipState.autoPause = vocabAutoPauseCheckbox.checked;
   
-  // Log the auto-pause setting for debugging
-  console.log(`Saving settings with auto-pause: ${vocabTooltipState.autoPause}`);
+  // Check if API key changed
+  const apiKeyChanged = apiKey !== vocabTooltipState.apiKey;
+  
+  // Store the API key securely if it has changed and is not empty
+  if (apiKeyChanged && apiKey) {
+    try {
+      const result = await window.electronAPI.secureStoreApiKey({ apiKey });
+      if (result.success) {
+        vocabTooltipState.apiKey = apiKey;
+        console.log('API key saved to secure storage');
+      } else {
+        showNotification('Failed to securely store API key: ' + result.error);
+        return;
+      }
+    } catch (error) {
+      console.error('Error saving API key to secure storage');
+      showNotification('Failed to securely store API key');
+      return;
+    }
+  } else if (apiKeyChanged && !apiKey) {
+    // If the key was cleared, delete it from secure storage
+    try {
+      await window.electronAPI.secureDeleteApiKey();
+      vocabTooltipState.apiKey = '';
+      console.log('API key deleted from secure storage');
+    } catch (error) {
+      console.error('Error deleting API key from secure storage');
+    }
+  }
+  
+  // Log settings (without sensitive information)
+  console.log('Saving vocabulary tooltip settings (API key hidden)');
   
   // Ensure delay properties are preserved
   vocabTooltipState.showDelay = vocabTooltipState.showDelay || 150;
   vocabTooltipState.hideDelay = vocabTooltipState.hideDelay || 400;
   
-  // Save to localStorage
-  localStorage.setItem('vocabTooltipSettings', JSON.stringify(vocabTooltipState));
+  // Create a copy of the state without the API key for localStorage
+  const stateForStorage = { ...vocabTooltipState };
+  delete stateForStorage.apiKey;
+  
+  // Save to localStorage (without API key)
+  localStorage.setItem('vocabTooltipSettings', JSON.stringify(stateForStorage));
   
   // Update UI
   updateVocabTooltipUI();
@@ -3430,9 +3521,14 @@ function saveVocabTooltipSettings() {
 
 // Reset settings to default
 function resetVocabTooltipSettings() {
+  // Preserve the API key
+  const currentApiKey = vocabTooltipState.apiKey;
+  const currentModels = vocabTooltipState.models;
+  
+  // Reset other settings
   vocabTooltipState = {
     enabled: true,
-    apiKey: vocabTooltipState.apiKey, // Keep the API key
+    apiKey: currentApiKey, // Keep the API key
     model: 'gpt-3.5-turbo',
     showIpa: true,
     showTurkish: true,
@@ -3440,16 +3536,20 @@ function resetVocabTooltipSettings() {
     autoPause: false,
     activeWord: null,
     videoWasPlaying: false,
-    models: vocabTooltipState.models,  // Keep the available models
-    showDelay: vocabTooltipState.showDelay || 150,  // Preserve or set default
-    hideDelay: vocabTooltipState.hideDelay || 400   // Preserve or set default
+    models: currentModels,  // Keep the available models
+    showDelay: 150,  // Default delay
+    hideDelay: 400   // Default delay
   };
   
   // Update UI
   updateVocabTooltipUI();
   
-  // Save to localStorage
-  localStorage.setItem('vocabTooltipSettings', JSON.stringify(vocabTooltipState));
+  // Create a copy of the state without the API key for localStorage
+  const stateForStorage = { ...vocabTooltipState };
+  delete stateForStorage.apiKey;
+  
+  // Save to localStorage (without API key)
+  localStorage.setItem('vocabTooltipSettings', JSON.stringify(stateForStorage));
   
   // Show notification
   showNotification('Vocabulary tooltip settings reset to default.');
@@ -3472,6 +3572,9 @@ async function verifyApiKey(apiKey, showResultInUI = true) {
   lastCheckedApiKey = apiKey;
   
   try {
+    // Never log the API key
+    console.log('Verifying API key (key hidden for security)');
+    
     const result = await window.electronAPI.checkOpenAIApiKey({ apiKey });
     
     if (result.success) {
@@ -3494,7 +3597,7 @@ async function verifyApiKey(apiKey, showResultInUI = true) {
       }
     }
   } catch (error) {
-    console.error('Error verifying API key:', error);
+    console.error('Error verifying API key - check network connection');
     if (showResultInUI) {
       apiKeyStatus.className = 'api-key-status error';
       apiKeyStatus.innerHTML = '<i class="fas fa-times-circle"></i> Error verifying API key. Check console for details.';
@@ -3670,6 +3773,9 @@ async function fetchWordDefinition(word, sentence) {
   showTooltipLoading();
   
   try {
+    // Log the action without exposing sensitive information
+    console.log(`Fetching definition for word: ${word} (API key hidden)`);
+    
     // Call API via IPC
     const result = await window.electronAPI.getWordDefinition({
       apiKey: vocabTooltipState.apiKey,
@@ -3686,7 +3792,8 @@ async function fetchWordDefinition(word, sentence) {
       showTooltipError(result.error);
     }
   } catch (error) {
-    console.error('Error fetching definition:', error);
+    // Log error without exposing API key
+    console.error('Error fetching definition - network or API issue');
     showTooltipError('Failed to fetch word definition. Check console for details.');
   }
 }
@@ -3800,8 +3907,10 @@ function toggleVocabTooltip() {
   vocabTooltipState.enabled = !vocabTooltipState.enabled;
   updateVocabTooltipUI();
   
-  // Save settings
-  localStorage.setItem('vocabTooltipSettings', JSON.stringify(vocabTooltipState));
+  // Save settings - create a safe copy without the API key
+  const stateForStorage = { ...vocabTooltipState };
+  delete stateForStorage.apiKey;
+  localStorage.setItem('vocabTooltipSettings', JSON.stringify(stateForStorage));
   
   // Close tooltip if it's open
   closeVocabTooltip();
